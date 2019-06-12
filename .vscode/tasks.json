@@ -1,0 +1,30 @@
+{
+    "version": "2.0.0",
+    "presentation": {
+        "clear": true,
+    },
+    "problemMatcher": ["$rustc"],
+    "type": "shell",
+    "options": {
+        "cwd": "${workspaceFolder}",
+        "env": { "RUST_BACKTRACE": "1" },
+    },
+    "tasks": [
+        // Tasks for multiple platforms that depend on ambient rust configuration.
+        { "group": "build", "label": "cargo clean",             "command": "cargo clean" },
+
+        // Target specific windows builds.
+        { "group": "build", "label": "cargo build --target=x86_64-pc-windows-msvc",             "windows": { "command": "cargo +stable-pc-windows-msvc build --target=x86_64-pc-windows-msvc          " } },
+        { "group": "build", "label": "cargo build --target=x86_64-pc-windows-msvc --release",   "windows": { "command": "cargo +stable-pc-windows-msvc build --target=x86_64-pc-windows-msvc --release" } },
+        { "group": "build", "label": "cargo build --target=i686-pc-windows-msvc",               "windows": { "command": "cargo +stable-pc-windows-msvc build --target=i686-pc-windows-msvc            " } },
+        { "group": "build", "label": "cargo build --target=i686-pc-windows-msvc --release",     "windows": { "command": "cargo +stable-pc-windows-msvc build --target=i686-pc-windows-msvc   --release" } },
+
+        { "group": "build", "label": "cargo build --target=x86_64-pc-windows-gnu",             "windows": { "command": "cargo +stable-pc-windows-gnu build --target=x86_64-pc-windows-gnu          " } },
+        { "group": "build", "label": "cargo build --target=x86_64-pc-windows-gnu --release",   "windows": { "command": "cargo +stable-pc-windows-gnu build --target=x86_64-pc-windows-gnu --release" } },
+        { "group": "build", "label": "cargo build --target=i686-pc-windows-gnu",               "windows": { "command": "cargo +stable-pc-windows-gnu build --target=i686-pc-windows-gnu            " } },
+        { "group": "build", "label": "cargo build --target=i686-pc-windows-gnu --release",     "windows": { "command": "cargo +stable-pc-windows-gnu build --target=i686-pc-windows-gnu   --release" } },
+
+        // Misc. targets
+        { "label": "Open github.com/MaulingMonkey/rust_win32_gdi", "windows": { "command": "start \"\" https://github.com/MaulingMonkey/rust_win32_gdi" } },
+    ],
+}

@@ -1,0 +1,13 @@
+[package]
+name = "rust_win32_gdi"
+version = "0.1.0"
+authors = ["MaulingMonkey <git@maulingmonkey.com>"]
+edition = "2018"
+
+[target.'cfg(windows)'.dependencies.winapi]
+version = "0.3.7"
+features = [
+    "debugapi",
+    "libloaderapi",
+    "winuser",
+]
