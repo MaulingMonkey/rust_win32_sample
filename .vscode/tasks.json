@@ -25,6 +25,6 @@
         { "group": "build", "label": "cargo build --target=i686-pc-windows-gnu --release",     "windows": { "command": "cargo +stable-pc-windows-gnu build --target=i686-pc-windows-gnu   --release" } },
 
         // Misc. targets
-        { "label": "Open github.com/MaulingMonkey/rust_win32_gdi", "windows": { "command": "start \"\" https://github.com/MaulingMonkey/rust_win32_gdi" } },
+        { "label": "Open github.com/MaulingMonkey/rust_win32_d3d11", "windows": { "command": "start \"\" https://github.com/MaulingMonkey/rust_win32_d3d11" } },
     ],
 }
