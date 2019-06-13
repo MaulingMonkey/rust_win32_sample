@@ -7,66 +7,20 @@
 #![windows_subsystem = "windows"]
 #![allow(non_snake_case)] // WinAPI style
 
-mod win32 {
-    pub use winapi::*;
-    pub use winapi::shared::dxgi::*;
-    pub use winapi::shared::dxgiformat::*;
-    pub use winapi::shared::dxgitype::*;
-    pub use winapi::shared::minwindef::*;
-    pub use winapi::shared::windef::*;
-    pub use winapi::shared::winerror::*;
-    pub use winapi::um::d3d11::*;
-    pub use winapi::um::d3dcommon::*;
-    pub use winapi::um::debugapi::*;
-    pub use winapi::um::libloaderapi::*;
-    pub use winapi::um::wingdi::*;
-    pub use winapi::um::winuser::*;
-}
+mod debug;
+#[macro_use] mod macros;
+mod win32;
+mod window;
 
+use window::*;
 use win32::*;
 use std::{ptr, mem};
 use std::marker::{PhantomData};
-
-macro_rules! wstr {
-    ($str:expr) => {
-        std::os::windows::ffi::OsStrExt::encode_wide(
-            std::ffi::OsStr::new(concat!($str, "\0"))
-        ).collect::<Vec<u16>>().as_ptr()
-        // A proc_macro like wch_c (wchar 0.2.0) would let us avoid ALLOCATING for a freakin' PCWSTR literal.
-        // However, that's not yet part of stable rust, so herp de derpity derp.
-    };
-}
 
 #[repr(transparent)]
 #[derive(Clone, Copy)]
 struct InputElementDesc<'a>(D3D11_INPUT_ELEMENT_DESC, PhantomData<&'a str>);
 unsafe impl<'a> Sync for InputElementDesc<'a> {}
-
-macro_rules! input_layout {
-    ($({ $semantic_name:expr , $semantic_index:expr , $format:expr , $input_slot:expr , $aligned_byte_offset:expr , $input_slot_class:expr , $instance_data_step_rate:expr }),+ $(,)?) => {
-        [
-            $(InputElementDesc(D3D11_INPUT_ELEMENT_DESC {
-                SemanticName:           concat!($semantic_name, "\0").as_ptr() as *const _,
-                SemanticIndex:          $semantic_index,
-                Format:                 $format,
-                InputSlot:              $input_slot,
-                AlignedByteOffset:      $aligned_byte_offset,
-                InputSlotClass:         $input_slot_class,
-                InstanceDataStepRate:   $instance_data_step_rate,
-            }, PhantomData)),+
-        ]
-    };
-}
-
-macro_rules! expect {
-    ($expr:expr) => {{
-        if !($expr) {
-            OutputDebugStringA(concat!(stringify!($expr), "\n... was false\n\0").as_ptr() as *const _);
-            if IsDebuggerPresent() != 0 { DebugBreak(); }
-            panic!(concat!("expect!(", stringify!($expr), ") failed"));
-        }
-    }};
-}
 
 #[repr(C, align(16))]
 #[derive(Clone, Copy, Debug)]
@@ -98,69 +52,17 @@ impl SimpleVertex {
     }
 }
 
-extern "system"
-fn window_proc(hwnd: HWND, uMsg: UINT, wParam: WPARAM, lParam: LPARAM) -> LRESULT {
-    unsafe {
-        match uMsg {
-            WM_DESTROY => {
-                PostQuitMessage(0);
-                0
-            },
-            _ => {
-                DefWindowProcW(hwnd, uMsg, wParam, lParam)
-            },
-        }
-    }
-}
-
 fn main() {
+    debug::init();
+    let mut window = Window::new();
+    window.show();
+    let client = window.client_area();
+
     unsafe {
-        std::panic::set_hook(Box::new(|_| if IsDebuggerPresent() != 0 { DebugBreak(); } ));
-
-        let hInstance = GetModuleHandleW(ptr::null());
-        expect!(hInstance != ptr::null_mut());
-
-        let hCursor = LoadCursorW(ptr::null_mut(), IDC_ARROW);
-        expect!(hCursor != ptr::null_mut());
-
-        let wc = WNDCLASSW {
-            lpfnWndProc: Some(window_proc),
-            hInstance,
-            hCursor,
-            lpszClassName: wstr!("SampleWndClass"),
-            ..mem::zeroed()
-        };
-        expect!(RegisterClassW(&wc) != 0);
-
-        let hwnd = CreateWindowExW(
-            0, // window style
-            wstr!("SampleWndClass"),
-            wstr!("Title"),
-            WS_OVERLAPPEDWINDOW,
-            CW_USEDEFAULT, // x
-            CW_USEDEFAULT, // y
-            800, // nwidth
-            600, // nheight
-            ptr::null_mut(), // parent
-            ptr::null_mut(), // menu
-            hInstance,
-            ptr::null_mut() // lpParam
-        );
-        expect!(hwnd != ptr::null_mut());
-
-        let nCmdShow = SW_SHOW;
-        expect!(ShowWindow(hwnd, nCmdShow) == 0);
-
-        let mut rect : RECT = mem::zeroed();
-        expect!(GetClientRect(hwnd, &mut rect) != 0);
-
-        let w = (rect.right - rect.left) as u32;
-        let h = (rect.bottom - rect.top) as u32;
-
         let swap_chain_desc = DXGI_SWAP_CHAIN_DESC {
             BufferDesc: DXGI_MODE_DESC {
-                Width:  w,
-                Height: h,
+                Width:  client.width(),
+                Height: client.height(),
                 RefreshRate: DXGI_RATIONAL { Numerator: 60, Denominator: 1 },
                 Format: DXGI_FORMAT_R8G8B8A8_UNORM,
                 ScanlineOrdering: DXGI_MODE_SCANLINE_ORDER_UNSPECIFIED,
@@ -169,7 +71,7 @@ fn main() {
             SampleDesc: DXGI_SAMPLE_DESC { Count: 1, Quality: 0 },
             BufferUsage: DXGI_USAGE_RENDER_TARGET_OUTPUT,
             BufferCount: 1,
-            OutputWindow: hwnd,
+            OutputWindow: window.hwnd(),
             Windowed: 1,
             SwapEffect: DXGI_SWAP_EFFECT_DISCARD,
             Flags: 0,
@@ -193,31 +95,34 @@ fn main() {
             ptr::null_mut(),
             &mut device_context
         )));
-        expect!(swap_chain     != ptr::null_mut());
-        expect!(device         != ptr::null_mut());
-        expect!(device_context != ptr::null_mut());
+        expect_ne!(swap_chain,     ptr::null_mut());
+        expect_ne!(device,         ptr::null_mut());
+        expect_ne!(device_context, ptr::null_mut());
+        let swap_chain      = &*swap_chain;
+        let device          = &*device;
+        let device_context  = &*device_context;
 
         let mut back_buffer = ptr::null_mut();
-        expect!(SUCCEEDED((*swap_chain).GetBuffer(0, &ID3D11Texture2D::uuidof(), &mut back_buffer)));
+        expect!(SUCCEEDED(swap_chain.GetBuffer(0, &ID3D11Texture2D::uuidof(), &mut back_buffer)));
         let back_buffer = back_buffer as * mut _;
 
         let mut rtv = ptr::null_mut();
-        expect!(SUCCEEDED((*device).CreateRenderTargetView(back_buffer, ptr::null_mut(), &mut rtv)));
-        expect!(rtv != ptr::null_mut());
+        expect!(SUCCEEDED(device.CreateRenderTargetView(back_buffer, ptr::null_mut(), &mut rtv)));
+        expect_ne!(rtv, ptr::null_mut());
 
-        (*device_context).OMSetRenderTargets(1, [rtv].as_ptr(), ptr::null_mut());
+        device_context.OMSetRenderTargets(1, [rtv].as_ptr(), ptr::null_mut());
 
-        let vp = D3D11_VIEWPORT { Width: w as f32, Height: h as f32, MinDepth: 0.0, MaxDepth: 1.0, TopLeftX: 0.0, TopLeftY: 0.0 };
-        (*device_context).RSSetViewports(1, [vp].as_ptr());
+        let vp = D3D11_VIEWPORT { Width: client.width() as f32, Height: client.height() as f32, MinDepth: 0.0, MaxDepth: 1.0, TopLeftX: 0.0, TopLeftY: 0.0 };
+        device_context.RSSetViewports(1, [vp].as_ptr());
 
         let vs_bin = include_bytes!("../target/assets/vs.bin");
         let ps_bin = include_bytes!("../target/assets/ps.bin");
         let mut vs = ptr::null_mut();
         let mut ps = ptr::null_mut();
-        expect!(SUCCEEDED((*device).CreateVertexShader(vs_bin.as_ptr() as *const _, vs_bin.len(), ptr::null_mut(), &mut vs)));
-        expect!(SUCCEEDED((*device).CreatePixelShader( ps_bin.as_ptr() as *const _, ps_bin.len(), ptr::null_mut(), &mut ps)));
+        expect!(SUCCEEDED(device.CreateVertexShader(vs_bin.as_ptr() as *const _, vs_bin.len(), ptr::null_mut(), &mut vs)));
+        expect!(SUCCEEDED(device.CreatePixelShader( ps_bin.as_ptr() as *const _, ps_bin.len(), ptr::null_mut(), &mut ps)));
         let mut input_layout = ptr::null_mut();
-        expect!(SUCCEEDED((*device).CreateInputLayout(SimpleVertex::layout().as_ptr() as *const _, SimpleVertex::layout().len() as UINT, vs_bin.as_ptr() as *const _, vs_bin.len(), &mut input_layout)));
+        expect!(SUCCEEDED(device.CreateInputLayout(SimpleVertex::layout().as_ptr() as *const _, SimpleVertex::layout().len() as UINT, vs_bin.as_ptr() as *const _, vs_bin.len(), &mut input_layout)));
 
         let verticies = [
             SimpleVertex::new(Vector::new( 0.0,  0.5, 0.5, 0.0)),
@@ -240,24 +145,28 @@ fn main() {
         };
 
         let mut vertex_buffer = ptr::null_mut();
-        expect!(SUCCEEDED((*device).CreateBuffer(&bd, &init_data, &mut vertex_buffer)));
+        expect!(SUCCEEDED(device.CreateBuffer(&bd, &init_data, &mut vertex_buffer)));
 
         loop {
+            expect!(window.is_alive());
             let mut msg : MSG = mem::zeroed();
             while PeekMessageW(&mut msg, ptr::null_mut(), 0, 0, PM_REMOVE) != 0 {
-                if msg.message == WM_QUIT { return; }
+                if msg.message == WM_QUIT {
+                    expect!(!window.is_alive());
+                    return;
+                }
                 TranslateMessage(&msg);
                 DispatchMessageW(&msg);
             }
 
-            (*device_context).ClearRenderTargetView(rtv, &[0.1, 0.2, 0.3, 1.0]);
-            (*device_context).IASetInputLayout(input_layout);
-            (*device_context).IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-            (*device_context).IASetVertexBuffers(0, 1, [vertex_buffer].as_ptr(), [mem::size_of::<SimpleVertex>() as UINT].as_ptr(), [0].as_ptr());
-            (*device_context).VSSetShader(vs, ptr::null_mut(), 0);
-            (*device_context).PSSetShader(ps, ptr::null_mut(), 0);
-            (*device_context).Draw(3, 0);
-            (*swap_chain).Present(0, 0);
+            device_context.ClearRenderTargetView(rtv, &[0.1, 0.2, 0.3, 1.0]);
+            device_context.IASetInputLayout(input_layout);
+            device_context.IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+            device_context.IASetVertexBuffers(0, 1, [vertex_buffer].as_ptr(), [mem::size_of::<SimpleVertex>() as UINT].as_ptr(), [0].as_ptr());
+            device_context.VSSetShader(vs, ptr::null_mut(), 0);
+            device_context.PSSetShader(ps, ptr::null_mut(), 0);
+            device_context.Draw(3, 0);
+            swap_chain.Present(0, 0);
         }
     };
 }
