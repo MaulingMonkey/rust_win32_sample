@@ -11,7 +11,7 @@ macro_rules! wstr {
 macro_rules! input_layout {
     ($({ $semantic_name:expr , $semantic_index:expr , $format:expr , $input_slot:expr , $aligned_byte_offset:expr , $input_slot_class:expr , $instance_data_step_rate:expr }),+ $(,)?) => {
         [
-            $(InputElementDesc(D3D11_INPUT_ELEMENT_DESC {
+            $(crate::d3d11::InputElementDesc(D3D11_INPUT_ELEMENT_DESC {
                 SemanticName:           concat!($semantic_name, "\0").as_ptr() as *const _,
                 SemanticIndex:          $semantic_index,
                 Format:                 $format,

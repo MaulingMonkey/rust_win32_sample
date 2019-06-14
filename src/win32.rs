@@ -1,6 +1,7 @@
 #![cfg(windows)]
 
 pub use winapi::*;
+pub use winapi::shared::basetsd::*;
 pub use winapi::shared::dxgi::*;
 pub use winapi::shared::dxgiformat::*;
 pub use winapi::shared::dxgitype::*;
