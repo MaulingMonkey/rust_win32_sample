@@ -1,23 +1,8 @@
+use crate::com::*;
+use crate::com::d3d11::*;
+use crate::com::dxgi::*;
 use crate::win32::*;
 use std::ptr::{null, null_mut};
-
-mod driver_type;
-mod feature_level;
-mod input_element_desc;
-mod primitive_topology;
-
-mod device;
-mod device_context;
-mod swap_chain;
-
-pub use driver_type::*;
-pub use feature_level::*;
-pub use input_element_desc::*;
-pub use primitive_topology::*;
-
-pub use device::*;
-pub use device_context::*;
-pub use swap_chain::*;
 
 pub struct DeviceAndSwapChain {
     pub feature_level:  FeatureLevel,
@@ -28,6 +13,10 @@ pub struct DeviceAndSwapChain {
 
 #[allow(dead_code)] // feature_level
 impl DeviceAndSwapChain {
+    /// MSDN: [D3D11CreateDeviceAndSwapChain](https://docs.microsoft.com/en-us/windows/desktop/api/d3d11/nf-d3d11-d3d11createdeviceandswapchain)
+    /// 
+    /// `unsafe`:  Possible undefined behavior if `DXGI_SWAP_CHAIN_DESC::OutputWindow` is an invalid handle,
+    /// or if `software` is `Some(invalid_ptr)`
     pub unsafe fn create(
         adapter:            Option<&IDXGIAdapter>,
         driver_type:        DriverType,
@@ -36,10 +25,6 @@ impl DeviceAndSwapChain {
         feature_levels:     Option<&[FeatureLevel]>,
         swap_chain_desc:    &DXGI_SWAP_CHAIN_DESC,
     ) -> Result<Self, HRESULT> {
-        // Unsafe concerns:
-        //      DXGI_SWAP_CHAIN_DESC::OutputWindow (HWND)
-        //      software (HMODULE)
-
         let mut swap_chain      = null_mut();
         let mut device          = null_mut();
         let mut device_context  = null_mut();
@@ -61,9 +46,9 @@ impl DeviceAndSwapChain {
         if SUCCEEDED(hresult) {
             Ok(Self{
                 feature_level,
-                swap_chain:     SwapChain::from(swap_chain).unwrap(),
-                device:         Device::from(device).unwrap(),
-                device_context: DeviceContext::from(device_context).unwrap(),
+                swap_chain:     SwapChain::own(swap_chain).unwrap(),
+                device:         Device::own(device).unwrap(),
+                device_context: DeviceContext::own(device_context).unwrap(),
             })
         } else {
             Err(hresult)

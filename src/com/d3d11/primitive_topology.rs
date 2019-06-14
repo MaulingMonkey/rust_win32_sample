@@ -3,6 +3,7 @@ use crate::win32::*;
 #[repr(u32)]
 #[derive(PartialEq, Eq, Clone, Copy, Debug)]
 #[allow(dead_code)] // Unused variants
+/// MSDN: [D3D_PRIMITIVE_TOPOLOGY](https://docs.microsoft.com/en-us/windows/desktop/api/d3dcommon/ne-d3dcommon-d3d_primitive_topology)
 pub enum PrimitiveTopology {
     Undefined                   = D3D_PRIMITIVE_TOPOLOGY_UNDEFINED,
     PointList                   = D3D_PRIMITIVE_TOPOLOGY_POINTLIST,

@@ -12,5 +12,6 @@ pub use winapi::um::d3d11::*;
 pub use winapi::um::d3dcommon::*;
 pub use winapi::um::debugapi::*;
 pub use winapi::um::libloaderapi::*;
+pub use winapi::um::unknwnbase::*;
 pub use winapi::um::wingdi::*;
 pub use winapi::um::winuser::*;

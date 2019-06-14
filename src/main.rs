@@ -8,16 +8,18 @@
 #![allow(non_snake_case)] // WinAPI style
 
 #[macro_use] mod macros;
-mod d3d11;
+mod com;
 mod debug;
 mod win32;
 mod window;
 
+use com::d3d11;
+use com::*;
 use window::*;
 use win32::*;
 use std::{ptr, mem};
 use std::marker::{PhantomData};
-
+use std::convert::AsRef;
 
 #[repr(C, align(16))]
 #[derive(Clone, Copy, Debug)]
@@ -73,7 +75,7 @@ fn main() {
         Flags: 0,
     };
 
-    let dasc = unsafe { d3d11::DeviceAndSwapChain::create(
+    let dasc = unsafe { DeviceAndSwapChain::create(
         None, // adapter
         d3d11::DriverType::Hardware,
         None, // software
@@ -86,18 +88,18 @@ fn main() {
     let device          = &dasc.device;
     let device_context  = &dasc.device_context;
 
-    let back_buffer = swap_chain.get_buffer::<ID3D11Texture2D>(0).unwrap(); // ID3D11Texture2D
-    let rtv = device.create_render_target_view(back_buffer, None).unwrap();
+    let back_buffer = swap_chain.get_buffer::<d3d11::Texture2D>(0).unwrap();
+    let rtv = device.create_render_target_view(&back_buffer, None).unwrap();
 
-    device_context.om_set_render_targets(&[rtv], ptr::null_mut());
+    device_context.om_set_render_targets(&[rtv.as_ref()], None);
 
     let vp = D3D11_VIEWPORT { Width: client.width() as f32, Height: client.height() as f32, MinDepth: 0.0, MaxDepth: 1.0, TopLeftX: 0.0, TopLeftY: 0.0 };
     device_context.rs_set_viewports(&[vp]);
 
     let vs_bin = include_bytes!("../target/assets/vs.bin");
     let ps_bin = include_bytes!("../target/assets/ps.bin");
-    let vs = device.create_vertex_shader(vs_bin, ptr::null_mut()).unwrap();
-    let ps = device.create_pixel_shader(ps_bin, ptr::null_mut()).unwrap();
+    let vs = device.create_vertex_shader(vs_bin, None).unwrap();
+    let ps = device.create_pixel_shader(ps_bin, None).unwrap();
     let input_layout = device.create_input_layout(SimpleVertex::layout(), vs_bin).unwrap();
 
     let verticies = [
@@ -137,12 +139,12 @@ fn main() {
             }
         }
 
-        device_context.clear_render_target_view(rtv, &[0.1, 0.2, 0.3, 1.0]);
-        device_context.ia_set_input_layout(input_layout);
+        device_context.clear_render_target_view(&rtv, &[0.1, 0.2, 0.3, 1.0]);
+        device_context.ia_set_input_layout(&input_layout);
         device_context.ia_set_primitive_topology(d3d11::PrimitiveTopology::TriangleList);
-        device_context.ia_set_vertex_buffers(0, &[vertex_buffer], &[mem::size_of::<SimpleVertex>() as UINT], &[0]);
-        device_context.vs_set_shader(vs, &[]);
-        device_context.ps_set_shader(ps, &[]);
+        device_context.ia_set_vertex_buffers(0, &[vertex_buffer.as_ref()], &[mem::size_of::<SimpleVertex>() as UINT], &[0]);
+        device_context.vs_set_shader(&vs, &[]);
+        device_context.ps_set_shader(&ps, &[]);
         device_context.draw(3, 0);
         swap_chain.present(0, 0).unwrap();
     }

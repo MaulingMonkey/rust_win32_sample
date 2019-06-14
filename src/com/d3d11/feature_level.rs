@@ -3,6 +3,7 @@ use std::fmt;
 
 #[repr(transparent)]
 #[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
+/// MSDN: [D3D_FEATURE_LEVEL](https://docs.microsoft.com/en-us/windows/desktop/api/d3dcommon/ne-d3dcommon-d3d_feature_level)
 pub struct FeatureLevel(pub(crate) D3D_FEATURE_LEVEL);
 
 impl FeatureLevel {
