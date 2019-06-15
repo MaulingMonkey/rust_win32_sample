@@ -1,13 +1,3 @@
-macro_rules! wstr {
-    ($str:expr) => {
-        std::os::windows::ffi::OsStrExt::encode_wide(
-            std::ffi::OsStr::new(concat!($str, "\0"))
-        ).collect::<Vec<u16>>().as_ptr()
-        // A proc_macro like wch_c (wchar 0.2.0) would let us avoid ALLOCATING for a freakin' PCWSTR literal.
-        // However, that's not yet part of stable rust, so herp de derpity derp.
-    };
-}
-
 macro_rules! input_layout {
     ($({ $semantic_name:expr , $semantic_index:expr , $format:expr , $input_slot:expr , $aligned_byte_offset:expr , $input_slot_class:expr , $instance_data_step_rate:expr }),+ $(,)?) => {
         [
@@ -24,6 +14,7 @@ macro_rules! input_layout {
     };
 }
 
+#[allow(unused_macros)]
 macro_rules! expect {
     ($expr:expr) => {{
         if !($expr) {

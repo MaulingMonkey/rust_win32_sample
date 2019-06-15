@@ -11,15 +11,17 @@
 mod com;
 mod debug;
 mod win32;
-mod window;
 
 use com::d3d11;
 use com::*;
-use window::*;
 use win32::*;
-use std::{ptr, mem};
+use std::mem;
 use std::marker::{PhantomData};
 use std::convert::AsRef;
+use winit::window::*;
+use winit::event::*;
+use winit::event_loop::*;
+use winit::platform::windows::WindowExtWindows;
 
 #[repr(C, align(16))]
 #[derive(Clone, Copy, Debug)]
@@ -53,14 +55,19 @@ impl SimpleVertex {
 
 fn main() {
     debug::init();
-    let mut window = Window::new();
-    window.show();
-    let client = window.client_area();
+
+    let event_loop = EventLoop::new();
+    let window = WindowBuilder::new()
+        .with_title("Rust Win32 Sample")
+        .with_inner_size((800, 600).into())
+        .build(&event_loop)
+        .unwrap();
+    let client = window.inner_size();
 
     let swap_chain_desc = DXGI_SWAP_CHAIN_DESC {
         BufferDesc: DXGI_MODE_DESC {
-            Width:  client.width(),
-            Height: client.height(),
+            Width:  client.width as UINT,
+            Height: client.height as UINT,
             RefreshRate: DXGI_RATIONAL { Numerator: 60, Denominator: 1 },
             Format: DXGI_FORMAT_R8G8B8A8_UNORM,
             ScanlineOrdering: DXGI_MODE_SCANLINE_ORDER_UNSPECIFIED,
@@ -69,13 +76,13 @@ fn main() {
         SampleDesc: DXGI_SAMPLE_DESC { Count: 1, Quality: 0 },
         BufferUsage: DXGI_USAGE_RENDER_TARGET_OUTPUT,
         BufferCount: 1,
-        OutputWindow: window.hwnd(),
+        OutputWindow: window.hwnd() as HWND,
         Windowed: 1,
         SwapEffect: DXGI_SWAP_EFFECT_DISCARD,
         Flags: 0,
     };
 
-    let dasc = unsafe { DeviceAndSwapChain::create(
+    let DeviceAndSwapChain { swap_chain, device, device_context, .. } = unsafe { DeviceAndSwapChain::create(
         None, // adapter
         d3d11::DriverType::Hardware,
         None, // software
@@ -84,16 +91,12 @@ fn main() {
         &swap_chain_desc
     )}.unwrap();
 
-    let swap_chain      = &dasc.swap_chain;
-    let device          = &dasc.device;
-    let device_context  = &dasc.device_context;
-
     let back_buffer = swap_chain.get_buffer::<d3d11::Texture2D>(0).unwrap();
     let rtv = device.create_render_target_view(&back_buffer, None).unwrap();
 
     device_context.om_set_render_targets(&[rtv.as_ref()], None);
 
-    let vp = D3D11_VIEWPORT { Width: client.width() as f32, Height: client.height() as f32, MinDepth: 0.0, MaxDepth: 1.0, TopLeftX: 0.0, TopLeftY: 0.0 };
+    let vp = D3D11_VIEWPORT { Width: client.width as f32, Height: client.height as f32, MinDepth: 0.0, MaxDepth: 1.0, TopLeftX: 0.0, TopLeftY: 0.0 };
     device_context.rs_set_viewports(&[vp]);
 
     let vs_bin = include_bytes!("../target/assets/vs.bin");
@@ -126,26 +129,22 @@ fn main() {
     let vertex_buffer = unsafe { device.create_buffer(&bd, Some(&init_data)) }.unwrap();
 
     loop {
-        expect!(window.is_alive());
-        unsafe {
-            let mut msg : MSG = mem::zeroed();
-            while PeekMessageW(&mut msg, ptr::null_mut(), 0, 0, PM_REMOVE) != 0 {
-                if msg.message == WM_QUIT {
-                    expect!(!window.is_alive());
-                    return;
-                }
-                TranslateMessage(&msg);
-                DispatchMessageW(&msg);
+        event_loop.run(move |event, _, control_flow| {
+            *control_flow = ControlFlow::Poll;
+            match event {
+                Event::WindowEvent { event: WindowEvent::CloseRequested, .. } => *control_flow = ControlFlow::Exit,
+                Event::EventsCleared => {
+                    device_context.clear_render_target_view(&rtv, &[0.1, 0.2, 0.3, 1.0]);
+                    device_context.ia_set_input_layout(&input_layout);
+                    device_context.ia_set_primitive_topology(d3d11::PrimitiveTopology::TriangleList);
+                    device_context.ia_set_vertex_buffers(0, &[vertex_buffer.as_ref()], &[mem::size_of::<SimpleVertex>() as UINT], &[0]);
+                    device_context.vs_set_shader(&vs, &[]);
+                    device_context.ps_set_shader(&ps, &[]);
+                    device_context.draw(3, 0);
+                    swap_chain.present(0, 0).unwrap();
+                },
+                _ => {},
             }
-        }
-
-        device_context.clear_render_target_view(&rtv, &[0.1, 0.2, 0.3, 1.0]);
-        device_context.ia_set_input_layout(&input_layout);
-        device_context.ia_set_primitive_topology(d3d11::PrimitiveTopology::TriangleList);
-        device_context.ia_set_vertex_buffers(0, &[vertex_buffer.as_ref()], &[mem::size_of::<SimpleVertex>() as UINT], &[0]);
-        device_context.vs_set_shader(&vs, &[]);
-        device_context.ps_set_shader(&ps, &[]);
-        device_context.draw(3, 0);
-        swap_chain.present(0, 0).unwrap();
+        });
     }
 }

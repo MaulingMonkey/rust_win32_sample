@@ -4,6 +4,10 @@ version = "0.1.0"
 authors = ["MaulingMonkey <git@maulingmonkey.com>"]
 edition = "2018"
 
+[dependencies]
+winit = { git = "https://github.com/rust-windowing/winit" }
+# winit = "0.19.2" # Not yet released
+
 [target.'cfg(windows)'.dependencies.winapi]
 version = "0.3.7"
 features = [
