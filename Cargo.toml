@@ -12,6 +12,7 @@ winit = { git = "https://github.com/rust-windowing/winit" }
 version = "0.3.7"
 features = [
     "d3d11",
+    "d3dcompiler",
     "debugapi",
     "dxgi",
     "libloaderapi",

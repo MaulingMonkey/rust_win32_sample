@@ -25,6 +25,7 @@ impl<T> crate::com::AsNativeSlice<*mut T> for [&T] {
     }
 }
 
+// XXX: This has a lot of overlap with https://github.com/retep998/wio-rs/blob/master/src/com.rs
 macro_rules! com_wrapper {
     ($(pub struct $wrapper:ident(*mut $target:ident);)+) => {$(
         pub struct $wrapper(*mut $target);
@@ -70,6 +71,7 @@ macro_rules! com_wrapper {
     )+};
 }
 
+pub mod d3d;
 pub mod d3d11;
 pub mod dxgi;
 

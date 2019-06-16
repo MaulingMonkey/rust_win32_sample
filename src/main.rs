@@ -12,11 +12,15 @@ mod com;
 mod debug;
 mod win32;
 
+use com::d3d;
 use com::d3d11;
 use com::*;
 use win32::*;
+use std::fs;
 use std::mem;
 use std::marker::{PhantomData};
+use std::path::{Path, PathBuf};
+use std::ffi::{CStr};
 use std::convert::AsRef;
 use winit::window::*;
 use winit::event::*;
@@ -51,6 +55,30 @@ impl SimpleVertex {
         };
         &LAYOUT[..]
     }
+}
+
+fn require_shader (name: &Path, target: d3d::Target) -> Vec<u8> {
+    let src_path = PathBuf::from("res").join(name);
+    let bin_path = PathBuf::from(r"target\assets").join(name).with_extension("bin");
+    let bin_dir = bin_path.parent().unwrap();
+    if !bin_dir.exists() {
+        fs::create_dir_all(&bin_dir).unwrap();
+    }
+    if !bin_path.exists() {
+        let result = unsafe { d3d::compile(
+            &fs::read(&src_path).unwrap()[..],
+            Some(&src_path),
+            None, // Defines
+            Some(d3d::COMPILE_STANDARD_FILE_INCLUDE),
+            Some(CStr::from_bytes_with_nul(b"main\0").unwrap()),
+            target.to_cstr(),
+            0, // flags1
+            0  // flags2
+        )}.unwrap();
+        
+        result.shader.write_file(&bin_path, false).unwrap();
+    }
+    fs::read(bin_path).unwrap()
 }
 
 fn main() {
@@ -99,11 +127,11 @@ fn main() {
     let vp = D3D11_VIEWPORT { Width: client.width as f32, Height: client.height as f32, MinDepth: 0.0, MaxDepth: 1.0, TopLeftX: 0.0, TopLeftY: 0.0 };
     device_context.rs_set_viewports(&[vp]);
 
-    let vs_bin = include_bytes!("../target/assets/vs.bin");
-    let ps_bin = include_bytes!("../target/assets/ps.bin");
-    let vs = device.create_vertex_shader(vs_bin, None).unwrap();
-    let ps = device.create_pixel_shader(ps_bin, None).unwrap();
-    let input_layout = device.create_input_layout(SimpleVertex::layout(), vs_bin).unwrap();
+    let vs_bin = require_shader(Path::new("vs.hlsl"), d3d::Target::vs_5_0);
+    let ps_bin = require_shader(Path::new("ps.hlsl"), d3d::Target::ps_5_0);
+    let vs = device.create_vertex_shader(&vs_bin[..], None).unwrap();
+    let ps = device.create_pixel_shader(&ps_bin[..], None).unwrap();
+    let input_layout = device.create_input_layout(SimpleVertex::layout(), &vs_bin[..]).unwrap();
 
     let verticies = [
         SimpleVertex::new(Vector::new( 0.0,  0.5, 0.5, 0.0)),
