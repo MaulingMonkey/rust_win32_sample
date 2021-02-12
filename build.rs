@@ -1,13 +1,8 @@
-use std::env;
+use mmrbi::*;
+
 use std::fs;
 use std::path::*;
 use std::process::Command;
-
-fn program_files_x86 () -> PathBuf {
-    if let Ok(path) = env::var("ProgramFiles(x86)") { return PathBuf::from(path); }
-    if let Ok(path) = env::var("ProgramFiles")      { return PathBuf::from(path); }
-    panic!("Couldn't find Program Files");
-}
 
 struct FxcShaderCompiler {
     fxc_exe: PathBuf,
@@ -17,7 +12,7 @@ impl FxcShaderCompiler {
     fn new () -> Self {
         let fsc = Self {
             // XXX: I should seriously consider using D3DCompile for better portability.
-            fxc_exe: program_files_x86().join(r"Windows Kits\10\bin\10.0.17763.0\x64\fxc.exe"),
+            fxc_exe: mmrbi::fs::windows::find_fxc_exe().unwrap_or_else(|err| fatal!("unable to find fxc.exe: {}", err)),
         };
         assert!(fsc.fxc_exe.exists());
         fsc
