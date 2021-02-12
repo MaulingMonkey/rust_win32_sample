@@ -93,19 +93,6 @@ macro_rules! expect {
     }};
 }
 
-unsafe extern "system"
-fn window_proc(hwnd: HWND, uMsg: UINT, wParam: WPARAM, lParam: LPARAM) -> LRESULT {
-    match uMsg {
-        WM_DESTROY => {
-            PostQuitMessage(0);
-            0
-        },
-        _ => {
-            DefWindowProcW(hwnd, uMsg, wParam, lParam)
-        },
-    }
-}
-
 fn main() {
     unsafe {
         std::panic::set_hook(Box::new(|_| if IsDebuggerPresent() != 0 { DebugBreak(); } ));
@@ -124,6 +111,18 @@ fn main() {
             ..mem::zeroed()
         };
         expect!(RegisterClassW(&wc) != 0);
+
+        unsafe extern "system" fn window_proc(hwnd: HWND, uMsg: UINT, wParam: WPARAM, lParam: LPARAM) -> LRESULT {
+            match uMsg {
+                WM_DESTROY => {
+                    PostQuitMessage(0);
+                    0
+                },
+                _ => {
+                    DefWindowProcW(hwnd, uMsg, wParam, lParam)
+                },
+            }
+        }
 
         let hwnd = CreateWindowExW(
             0, // window style
