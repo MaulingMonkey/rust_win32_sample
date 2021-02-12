@@ -58,9 +58,8 @@ use std::marker::PhantomData;
 macro_rules! expect {
     ($expr:expr) => {{
         if !($expr) {
+
             OutputDebugStringA(concat!(stringify!($expr), "\n... was false\n\0").as_ptr().cast());
-            // https://docs.microsoft.com/en-us/windows/win32/api/debugapi/nf-debugapi-outputdebugstringa
-            // Alternative: https://docs.rs/bugsalot/0.2.1/bugsalot/macro.debugln.html
             //
             // Because we're using `#![windows_subsystem = "windows"]`, we don't have any stderr to write to.
             // We could create a console, but there's a special debug output stream we can use that OutputDebugStringA
@@ -73,11 +72,12 @@ macro_rules! expect {
             //
             // This is an ideal channel for developer-only debug spam that regular users should not be exposed to.
             // Because this API expects C-style strings, it's necessary for the buffer to be `\0`-terminated!
+            //
+            // MSDN:        https://docs.microsoft.com/en-us/windows/win32/api/debugapi/nf-debugapi-outputdebugstringa
+            // Alternative: https://docs.rs/bugsalot/0.2.1/bugsalot/macro.debugln.html
+
 
             if IsDebuggerPresent() != 0 { DebugBreak(); }
-            // https://docs.microsoft.com/en-us/windows/win32/api/debugapi/nf-debugapi-isdebuggerpresent
-            // https://docs.microsoft.com/en-us/windows/win32/api/debugapi/nf-debugapi-debugbreak
-            // Alternative: https://docs.rs/bugsalot/0.2.1/bugsalot/debugger/fn.break_if_attached.html
             //
             // This is a hardcoded breakpoint.  This is somewhat unnecessary - you could simply remember to breakpoint
             // `rust_panic` inside your debugger.  However, hardcoding a breakpoint here means we don't have to remember
@@ -86,34 +86,46 @@ macro_rules! expect {
             //
             // By placing this breakpoint inside a macro, which gets directly inlined into the code, 9 times out of 10
             // we'll be looking at the actual code that broke, without any manual work by the developer.  Neat!
+            //
+            // MSDN:        https://docs.microsoft.com/en-us/windows/win32/api/debugapi/nf-debugapi-isdebuggerpresent
+            // MSDN:        https://docs.microsoft.com/en-us/windows/win32/api/debugapi/nf-debugapi-debugbreak
+            // Alternative: https://docs.rs/bugsalot/0.2.1/bugsalot/debugger/fn.break_if_attached.html
+
 
             panic!(concat!("expect!(", stringify!($expr), ") failed"));
             // If no debugger is attached... well, fall back on doing what panic did anyways.
+
         }
     }};
 }
 
 fn main() {
     unsafe {
+
         std::panic::set_hook(Box::new(|_| if IsDebuggerPresent() != 0 { DebugBreak(); } ));
         // If we panic "regularly" and not via `expect!`, I still want a breakpoint - see `expect!` above for details.
 
+
         let hInstance = GetModuleHandleW(ptr::null());
         expect!(hInstance != ptr::null_mut());
-        // https://docs.microsoft.com/en-us/windows/win32/api/libloaderapi/nf-libloaderapi-getmodulehandlew
         //
         // By passing `NULL` to `GetModuleHandleW`, we retrieve an `HMODULE` to the currently executing process / .exe.
         // A lot of Win32 functions treat `HMODULE`s as a namespace or container of resources.
+        //
+        // MSDN:    https://docs.microsoft.com/en-us/windows/win32/api/libloaderapi/nf-libloaderapi-getmodulehandlew
+
 
         let hCursor = LoadCursorW(ptr::null_mut(), IDC_ARROW);
         expect!(hCursor != ptr::null_mut());
-        // https://docs.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-loadcursorw
         //
         // We want to load a standard system `IDC_*` cursor, so we pass `NULL` instead of our own `hInstance`.
         //
         // If we had embedded a custom cursor into our executable via an .rc file, and wanted to use that cursor, *then*
         // we would pass `hInstance`.  Alternatively, we could pass an `HMODULE` to a DLL if we wanted to load cursors
         // embedded in that DLL.
+        //
+        // MSDN:    https://docs.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-loadcursorw
+
 
         let wc = WNDCLASSW {
             lpfnWndProc: Some(window_proc),
