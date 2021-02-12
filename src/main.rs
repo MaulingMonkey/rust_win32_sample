@@ -112,8 +112,8 @@ fn main() {
         // We want to load a standard system `IDC_*` cursor, so we pass `NULL` instead of our own `hInstance`.
         //
         // If we had embedded a custom cursor into our executable via an .rc file, and wanted to use that cursor, *then*
-        // we would pass `hInstance`.  Alternatively, we could pass an `hInstance` to a DLL if we wanted to load cursors
-        // embedded into that DLL.
+        // we would pass `hInstance`.  Alternatively, we could pass an `HMODULE` to a DLL if we wanted to load cursors
+        // embedded in that DLL.
 
         let wc = WNDCLASSW {
             lpfnWndProc: Some(window_proc),
