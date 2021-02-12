@@ -52,6 +52,8 @@ use winapi::um::winuser::*;
 use std::{ptr, mem};
 use std::marker::PhantomData;
 
+
+
 #[repr(transparent)]
 #[derive(Clone, Copy)]
 struct InputElementDesc<'a>(D3D11_INPUT_ELEMENT_DESC, PhantomData<&'a str>);
