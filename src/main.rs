@@ -7,26 +7,23 @@
 #![windows_subsystem = "windows"]
 #![allow(non_snake_case)] // WinAPI style
 
-mod win32 {
-    pub use winapi::*;
-    pub use winapi::shared::dxgi::*;
-    pub use winapi::shared::dxgiformat::*;
-    pub use winapi::shared::dxgitype::*;
-    pub use winapi::shared::minwindef::*;
-    pub use winapi::shared::windef::*;
-    pub use winapi::shared::winerror::*;
-    pub use winapi::um::d3d11::*;
-    pub use winapi::um::d3dcommon::*;
-    pub use winapi::um::debugapi::*;
-    pub use winapi::um::libloaderapi::*;
-    pub use winapi::um::wingdi::*;
-    pub use winapi::um::winuser::*;
-}
-
 use wchar::wch_c;
-use win32::*;
+
+use winapi::Interface; // uuidof
+use winapi::shared::dxgi::*;
+use winapi::shared::dxgiformat::*;
+use winapi::shared::dxgitype::*;
+use winapi::shared::minwindef::*;
+use winapi::shared::windef::*;
+use winapi::shared::winerror::*;
+use winapi::um::d3d11::*;
+use winapi::um::d3dcommon::*;
+use winapi::um::debugapi::*;
+use winapi::um::libloaderapi::*;
+use winapi::um::winuser::*;
+
 use std::{ptr, mem};
-use std::marker::{PhantomData};
+use std::marker::PhantomData;
 
 #[repr(transparent)]
 #[derive(Clone, Copy)]
