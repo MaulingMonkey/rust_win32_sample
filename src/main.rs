@@ -49,8 +49,9 @@ use winapi::um::debugapi::*;
 use winapi::um::libloaderapi::*;
 use winapi::um::winuser::*;
 
-use std::{ptr, mem};
 use std::marker::PhantomData;
+use std::mem::{size_of, size_of_val, zeroed};
+use std::ptr::{null, null_mut};
 
 
 
@@ -106,8 +107,8 @@ fn main() {
         // If we panic "regularly" and not via `expect!`, I still want a breakpoint - see `expect!` above for details.
 
 
-        let hInstance = GetModuleHandleW(ptr::null());
-        expect!(hInstance != ptr::null_mut());
+        let hInstance = GetModuleHandleW(null());
+        expect!(!hInstance.is_null());
         //
         // By passing `NULL` to `GetModuleHandleW`, we retrieve an `HMODULE` to the currently executing process / .exe.
         // A lot of Win32 functions treat `HMODULE`s as a namespace or container of resources.
@@ -115,8 +116,8 @@ fn main() {
         // MSDN:    https://docs.microsoft.com/en-us/windows/win32/api/libloaderapi/nf-libloaderapi-getmodulehandlew
 
 
-        let hCursor = LoadCursorW(ptr::null_mut(), IDC_ARROW);
-        expect!(hCursor != ptr::null_mut());
+        let hCursor = LoadCursorW(null_mut(), IDC_ARROW);
+        expect!(!hCursor.is_null());
         //
         // We want to load a standard system `IDC_*` cursor, so we pass `NULL` instead of our own `hInstance`.
         //
@@ -132,7 +133,7 @@ fn main() {
             hInstance,
             hCursor,
             lpszClassName: wch_c!("SampleWndClass").as_ptr(),
-            ..mem::zeroed()
+            .. zeroed()
         };
         expect!(RegisterClassW(&wc) != 0);
 
@@ -157,17 +158,17 @@ fn main() {
             CW_USEDEFAULT, // y
             800, // nwidth
             600, // nheight
-            ptr::null_mut(), // parent
-            ptr::null_mut(), // menu
+            null_mut(), // parent
+            null_mut(), // menu
             hInstance,
-            ptr::null_mut() // lpParam
+            null_mut() // lpParam
         );
-        expect!(hwnd != ptr::null_mut());
+        expect!(!hwnd.is_null());
 
         let nCmdShow = SW_SHOW;
         expect!(ShowWindow(hwnd, nCmdShow) == 0);
 
-        let mut rect : RECT = mem::zeroed();
+        let mut rect : RECT = zeroed();
         expect!(GetClientRect(hwnd, &mut rect) != 0);
 
         let w = (rect.right - rect.left) as u32;
@@ -191,14 +192,14 @@ fn main() {
             Flags: 0,
         };
 
-        let mut swap_chain = ptr::null_mut();
-        let mut device = ptr::null_mut();
-        let mut device_context = ptr::null_mut();
+        let mut swap_chain = null_mut();
+        let mut device = null_mut();
+        let mut device_context = null_mut();
         let feature_levels = &[D3D_FEATURE_LEVEL_11_0];
         expect!(SUCCEEDED(D3D11CreateDeviceAndSwapChain(
-            ptr::null_mut(), // adapter
+            null_mut(), // adapter
             D3D_DRIVER_TYPE_HARDWARE,
-            ptr::null_mut(), // software
+            null_mut(), // software
             0, // flags
             feature_levels.as_ptr(),
             feature_levels.len() as u32,
@@ -206,33 +207,33 @@ fn main() {
             &swap_chain_desc,
             &mut swap_chain,
             &mut device,
-            ptr::null_mut(),
+            null_mut(),
             &mut device_context
         )));
-        expect!(swap_chain     != ptr::null_mut());
-        expect!(device         != ptr::null_mut());
-        expect!(device_context != ptr::null_mut());
+        expect!(!swap_chain     .is_null());
+        expect!(!device         .is_null());
+        expect!(!device_context .is_null());
 
-        let mut back_buffer = ptr::null_mut();
+        let mut back_buffer = null_mut();
         expect!(SUCCEEDED((*swap_chain).GetBuffer(0, &ID3D11Texture2D::uuidof(), &mut back_buffer)));
         let back_buffer = back_buffer as * mut _;
 
-        let mut rtv = ptr::null_mut();
-        expect!(SUCCEEDED((*device).CreateRenderTargetView(back_buffer, ptr::null_mut(), &mut rtv)));
-        expect!(rtv != ptr::null_mut());
+        let mut rtv = null_mut();
+        expect!(SUCCEEDED((*device).CreateRenderTargetView(back_buffer, null_mut(), &mut rtv)));
+        expect!(!rtv.is_null());
 
-        (*device_context).OMSetRenderTargets(1, [rtv].as_ptr(), ptr::null_mut());
+        (*device_context).OMSetRenderTargets(1, [rtv].as_ptr(), null_mut());
 
         let vp = D3D11_VIEWPORT { Width: w as f32, Height: h as f32, MinDepth: 0.0, MaxDepth: 1.0, TopLeftX: 0.0, TopLeftY: 0.0 };
         (*device_context).RSSetViewports(1, [vp].as_ptr());
 
         let vs_bin = include_bytes!("../target/assets/vs.bin");
         let ps_bin = include_bytes!("../target/assets/ps.bin");
-        let mut vs = ptr::null_mut();
-        let mut ps = ptr::null_mut();
-        expect!(SUCCEEDED((*device).CreateVertexShader(vs_bin.as_ptr() as *const _, vs_bin.len(), ptr::null_mut(), &mut vs)));
-        expect!(SUCCEEDED((*device).CreatePixelShader( ps_bin.as_ptr() as *const _, ps_bin.len(), ptr::null_mut(), &mut ps)));
-        let mut input_layout = ptr::null_mut();
+        let mut vs = null_mut();
+        let mut ps = null_mut();
+        expect!(SUCCEEDED((*device).CreateVertexShader(vs_bin.as_ptr() as *const _, vs_bin.len(), null_mut(), &mut vs)));
+        expect!(SUCCEEDED((*device).CreatePixelShader( ps_bin.as_ptr() as *const _, ps_bin.len(), null_mut(), &mut ps)));
+        let mut input_layout = null_mut();
         expect!(SUCCEEDED((*device).CreateInputLayout(SimpleVertex::layout().as_ptr() as *const _, SimpleVertex::layout().len() as UINT, vs_bin.as_ptr() as *const _, vs_bin.len(), &mut input_layout)));
 
         let verticies = [
@@ -243,24 +244,24 @@ fn main() {
 
         let bd = D3D11_BUFFER_DESC {
             Usage:              D3D11_USAGE_DEFAULT,
-            ByteWidth:          mem::size_of_val(&verticies) as UINT,
+            ByteWidth:          size_of_val(&verticies) as UINT,
             BindFlags:          D3D11_BIND_VERTEX_BUFFER,
             CPUAccessFlags:     0,
             MiscFlags:          0,
-            .. mem::zeroed()
+            .. zeroed()
         };
 
         let init_data = D3D11_SUBRESOURCE_DATA {
             pSysMem: verticies.as_ptr() as *const _,
-            .. mem::zeroed()
+            .. zeroed()
         };
 
-        let mut vertex_buffer = ptr::null_mut();
+        let mut vertex_buffer = null_mut();
         expect!(SUCCEEDED((*device).CreateBuffer(&bd, &init_data, &mut vertex_buffer)));
 
         loop {
-            let mut msg : MSG = mem::zeroed();
-            while PeekMessageW(&mut msg, ptr::null_mut(), 0, 0, PM_REMOVE) != 0 {
+            let mut msg : MSG = zeroed();
+            while PeekMessageW(&mut msg, null_mut(), 0, 0, PM_REMOVE) != 0 {
                 if msg.message == WM_QUIT { return; }
                 TranslateMessage(&msg);
                 DispatchMessageW(&msg);
@@ -269,9 +270,9 @@ fn main() {
             (*device_context).ClearRenderTargetView(rtv, &[0.1, 0.2, 0.3, 1.0]);
             (*device_context).IASetInputLayout(input_layout);
             (*device_context).IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-            (*device_context).IASetVertexBuffers(0, 1, [vertex_buffer].as_ptr(), [mem::size_of::<SimpleVertex>() as UINT].as_ptr(), [0].as_ptr());
-            (*device_context).VSSetShader(vs, ptr::null_mut(), 0);
-            (*device_context).PSSetShader(ps, ptr::null_mut(), 0);
+            (*device_context).IASetVertexBuffers(0, 1, [vertex_buffer].as_ptr(), [size_of::<SimpleVertex>() as UINT].as_ptr(), [0].as_ptr());
+            (*device_context).VSSetShader(vs, null_mut(), 0);
+            (*device_context).PSSetShader(ps, null_mut(), 0);
             (*device_context).Draw(3, 0);
             (*swap_chain).Present(0, 0);
         }
