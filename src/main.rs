@@ -96,12 +96,24 @@ macro_rules! expect {
 fn main() {
     unsafe {
         std::panic::set_hook(Box::new(|_| if IsDebuggerPresent() != 0 { DebugBreak(); } ));
+        // If we panic "regularly" and not via `expect!`, I still want a breakpoint - see `expect!` above for details.
 
         let hInstance = GetModuleHandleW(ptr::null());
         expect!(hInstance != ptr::null_mut());
+        // https://docs.microsoft.com/en-us/windows/win32/api/libloaderapi/nf-libloaderapi-getmodulehandlew
+        //
+        // By passing `NULL` to `GetModuleHandleW`, we retrieve an `HMODULE` to the currently executing process / .exe.
+        // A lot of Win32 functions treat `HMODULE`s as a namespace or container of resources.
 
         let hCursor = LoadCursorW(ptr::null_mut(), IDC_ARROW);
         expect!(hCursor != ptr::null_mut());
+        // https://docs.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-loadcursorw
+        //
+        // We want to load a standard system `IDC_*` cursor, so we pass `NULL` instead of our own `hInstance`.
+        //
+        // If we had embedded a custom cursor into our executable via an .rc file, and wanted to use that cursor, *then*
+        // we would pass `hInstance`.  Alternatively, we could pass an `hInstance` to a DLL if we wanted to load cursors
+        // embedded into that DLL.
 
         let wc = WNDCLASSW {
             lpfnWndProc: Some(window_proc),
