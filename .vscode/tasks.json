@@ -11,6 +11,7 @@
     },
     "tasks": [
         // Tasks for multiple platforms that depend on ambient rust configuration.
+        { "group": { "kind": "build", "isDefault": true }, "label": "cargo check", "command": "cargo check" },
         { "group": "build", "label": "cargo clean",             "command": "cargo clean" },
 
         // Target specific windows builds.
