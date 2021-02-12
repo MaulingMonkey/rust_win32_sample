@@ -23,19 +23,10 @@ mod win32 {
     pub use winapi::um::winuser::*;
 }
 
+use wchar::wch_c;
 use win32::*;
 use std::{ptr, mem};
 use std::marker::{PhantomData};
-
-macro_rules! wstr {
-    ($str:expr) => {
-        std::os::windows::ffi::OsStrExt::encode_wide(
-            std::ffi::OsStr::new(concat!($str, "\0"))
-        ).collect::<Vec<u16>>().as_ptr()
-        // A proc_macro like wch_c (wchar 0.2.0) would let us avoid ALLOCATING for a freakin' PCWSTR literal.
-        // However, that's not yet part of stable rust, so herp de derpity derp.
-    };
-}
 
 #[repr(transparent)]
 #[derive(Clone, Copy)]
@@ -127,15 +118,15 @@ fn main() {
             lpfnWndProc: Some(window_proc),
             hInstance,
             hCursor,
-            lpszClassName: wstr!("SampleWndClass"),
+            lpszClassName: wch_c!("SampleWndClass").as_ptr(),
             ..mem::zeroed()
         };
         expect!(RegisterClassW(&wc) != 0);
 
         let hwnd = CreateWindowExW(
             0, // window style
-            wstr!("SampleWndClass"),
-            wstr!("Title"),
+            wch_c!("SampleWndClass").as_ptr(),
+            wch_c!("Title").as_ptr(),
             WS_OVERLAPPEDWINDOW,
             CW_USEDEFAULT, // x
             CW_USEDEFAULT, // y

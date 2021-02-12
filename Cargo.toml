@@ -7,6 +7,9 @@ edition = "2018"
 [target.'cfg(windows)'.build-dependencies]
 mmrbi   = "0.0.15"
 
+[target.'cfg(windows)'.dependencies]
+wchar   = "0.6"
+
 [target.'cfg(windows)'.dependencies.winapi]
 version = "0.3.7"
 features = [
