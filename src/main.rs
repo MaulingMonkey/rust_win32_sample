@@ -5,7 +5,34 @@
 //     3) https://docs.microsoft.com/en-us/previous-versions//ff729720(v=vs.85)
 
 #![windows_subsystem = "windows"]
-#![allow(non_snake_case)] // WinAPI style
+// Changes the default windows_subsystem from "console".
+//
+// If the program is launched from a cmd.exe window:
+//
+//      "console" programs will borrow console input/output, with cmd.exe not showing a new command prompt until the
+//      program either terminates, or explicitly detatches via `FreeConsole()`
+//
+//      "windows" programs will detatch from the console - stdout will be ignored, reading stdin will fail, and cmd.exe
+//      will be able to immediately display a new C:\> prompt while the program is still executing.  They can reattach
+//      to the parrent console via `AttachConsole(ARRACH_PARENT_PROCESS)`, but this can be confusing as other things are
+//      likely happening in said console already.
+//
+// If the program is launched from an explorer.exe window:
+//
+//      "console" programs will spawn a new console window
+//      "windows" programs won't have a console at all.  They can spawn new consoles with `AllocConsole()` however.
+
+#![allow(non_snake_case)]
+// Rust will typically warn if you use variable names like `hInstance`, preferring `h_instance` instead.
+// However, several Win32 structs contain names like `hInstance`, and matching those names allows the use of:
+//
+//      WNDCLASSW { hInstance, ... }
+//
+// Instead of:
+//
+//      WNDCLASSW { hInstance: h_instance, ... }
+//
+// Which is much less convenient ;)
 
 use wchar::wch_c;
 
