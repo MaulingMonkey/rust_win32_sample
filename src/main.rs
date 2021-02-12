@@ -54,6 +54,45 @@ use std::marker::PhantomData;
 
 
 
+/// Like `assert!(...)`, but more awesome
+macro_rules! expect {
+    ($expr:expr) => {{
+        if !($expr) {
+            OutputDebugStringA(concat!(stringify!($expr), "\n... was false\n\0").as_ptr().cast());
+            // https://docs.microsoft.com/en-us/windows/win32/api/debugapi/nf-debugapi-outputdebugstringa
+            // Alternative: https://docs.rs/bugsalot/0.2.1/bugsalot/macro.debugln.html
+            //
+            // Because we're using `#![windows_subsystem = "windows"]`, we don't have any stderr to write to.
+            // We could create a console, but there's a special debug output stream we can use that OutputDebugStringA
+            // writes to for us.  This debug output stream can be viewed by:
+            //
+            //  1.  The "Debug Console" tab in Visual Studio Code, when attached to a program
+            //  2.  The "Output" tab in Visual Studio, when attached to a program
+            //  3.  The DebugView utility (https://docs.microsoft.com/en-us/sysinternals/downloads/debugview)
+            //  4.  Any other debugger that processes `OUTPUT_DEBUG_STRING_EVENT`s
+            //
+            // This is an ideal channel for developer-only debug spam that regular users should not be exposed to.
+            // Because this API expects C-style strings, it's necessary for the buffer to be `\0`-terminated!
+
+            if IsDebuggerPresent() != 0 { DebugBreak(); }
+            // https://docs.microsoft.com/en-us/windows/win32/api/debugapi/nf-debugapi-isdebuggerpresent
+            // https://docs.microsoft.com/en-us/windows/win32/api/debugapi/nf-debugapi-debugbreak
+            // Alternative: https://docs.rs/bugsalot/0.2.1/bugsalot/debugger/fn.break_if_attached.html
+            //
+            // This is a hardcoded breakpoint.  This is somewhat unnecessary - you could simply remember to breakpoint
+            // `rust_panic` inside your debugger.  However, hardcoding a breakpoint here means we don't have to remember
+            // to configure said breakpoint.  Also, IDEs will usually navigate directly to the source code of the
+            // breakpoint - `rust_panic` isn't what you want to look at, but whatever is calling this macro likely is.
+            //
+            // By placing this breakpoint inside a macro, which gets directly inlined into the code, 9 times out of 10
+            // we'll be looking at the actual code that broke, without any manual work by the developer.  Neat!
+
+            panic!(concat!("expect!(", stringify!($expr), ") failed"));
+            // If no debugger is attached... well, fall back on doing what panic did anyways.
+        }
+    }};
+}
+
 #[repr(transparent)]
 #[derive(Clone, Copy)]
 struct InputElementDesc<'a>(D3D11_INPUT_ELEMENT_DESC, PhantomData<&'a str>);
@@ -73,16 +112,6 @@ macro_rules! input_layout {
             }, PhantomData)),+
         ]
     };
-}
-
-macro_rules! expect {
-    ($expr:expr) => {{
-        if !($expr) {
-            OutputDebugStringA(concat!(stringify!($expr), "\n... was false\n\0").as_ptr() as *const _);
-            if IsDebuggerPresent() != 0 { DebugBreak(); }
-            panic!(concat!("expect!(", stringify!($expr), ") failed"));
-        }
-    }};
 }
 
 #[repr(C, align(16))]
