@@ -86,18 +86,16 @@ impl SimpleVertex {
     }
 }
 
-extern "system"
+unsafe extern "system"
 fn window_proc(hwnd: HWND, uMsg: UINT, wParam: WPARAM, lParam: LPARAM) -> LRESULT {
-    unsafe {
-        match uMsg {
-            WM_DESTROY => {
-                PostQuitMessage(0);
-                0
-            },
-            _ => {
-                DefWindowProcW(hwnd, uMsg, wParam, lParam)
-            },
-        }
+    match uMsg {
+        WM_DESTROY => {
+            PostQuitMessage(0);
+            0
+        },
+        _ => {
+            DefWindowProcW(hwnd, uMsg, wParam, lParam)
+        },
     }
 }
 
