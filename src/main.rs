@@ -93,57 +93,6 @@ macro_rules! expect {
     }};
 }
 
-#[repr(transparent)]
-#[derive(Clone, Copy)]
-struct InputElementDesc<'a>(D3D11_INPUT_ELEMENT_DESC, PhantomData<&'a str>);
-unsafe impl<'a> Sync for InputElementDesc<'a> {}
-
-macro_rules! input_layout {
-    ($({ $semantic_name:expr , $semantic_index:expr , $format:expr , $input_slot:expr , $aligned_byte_offset:expr , $input_slot_class:expr , $instance_data_step_rate:expr }),+ $(,)?) => {
-        [
-            $(InputElementDesc(D3D11_INPUT_ELEMENT_DESC {
-                SemanticName:           concat!($semantic_name, "\0").as_ptr() as *const _,
-                SemanticIndex:          $semantic_index,
-                Format:                 $format,
-                InputSlot:              $input_slot,
-                AlignedByteOffset:      $aligned_byte_offset,
-                InputSlotClass:         $input_slot_class,
-                InstanceDataStepRate:   $instance_data_step_rate,
-            }, PhantomData)),+
-        ]
-    };
-}
-
-#[repr(C, align(16))]
-#[derive(Clone, Copy, Debug)]
-struct Vector {
-    pub x: f32,
-    pub y: f32,
-    pub z: f32,
-    pub w: f32,
-}
-
-impl Vector {
-    fn new (x: f32, y: f32, z: f32, w: f32) -> Self { Self {x, y, z, w} }
-}
-
-#[repr(C)]
-#[derive(Clone, Copy, Debug)]
-struct SimpleVertex {
-    pub pos: Vector,
-}
-
-impl SimpleVertex {
-    fn new (pos: Vector) -> Self { Self { pos } }
-
-    fn layout() -> &'static [InputElementDesc<'static>] {
-        static LAYOUT : [InputElementDesc; 1] = input_layout! {
-            { "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0,  0, D3D11_INPUT_PER_VERTEX_DATA, 0 },
-        };
-        &LAYOUT[..]
-    }
-}
-
 unsafe extern "system"
 fn window_proc(hwnd: HWND, uMsg: UINT, wParam: WPARAM, lParam: LPARAM) -> LRESULT {
     match uMsg {
@@ -304,4 +253,56 @@ fn main() {
             (*swap_chain).Present(0, 0);
         }
     };
+}
+
+
+#[repr(transparent)]
+#[derive(Clone, Copy)]
+struct InputElementDesc<'a>(D3D11_INPUT_ELEMENT_DESC, PhantomData<&'a str>);
+unsafe impl<'a> Sync for InputElementDesc<'a> {}
+
+macro_rules! input_layout {
+    ($({ $semantic_name:expr , $semantic_index:expr , $format:expr , $input_slot:expr , $aligned_byte_offset:expr , $input_slot_class:expr , $instance_data_step_rate:expr }),+ $(,)?) => {
+        [
+            $(InputElementDesc(D3D11_INPUT_ELEMENT_DESC {
+                SemanticName:           concat!($semantic_name, "\0").as_ptr() as *const _,
+                SemanticIndex:          $semantic_index,
+                Format:                 $format,
+                InputSlot:              $input_slot,
+                AlignedByteOffset:      $aligned_byte_offset,
+                InputSlotClass:         $input_slot_class,
+                InstanceDataStepRate:   $instance_data_step_rate,
+            }, PhantomData)),+
+        ]
+    };
+}
+
+#[repr(C, align(16))]
+#[derive(Clone, Copy, Debug)]
+struct Vector {
+    pub x: f32,
+    pub y: f32,
+    pub z: f32,
+    pub w: f32,
+}
+
+impl Vector {
+    fn new (x: f32, y: f32, z: f32, w: f32) -> Self { Self {x, y, z, w} }
+}
+
+#[repr(C)]
+#[derive(Clone, Copy, Debug)]
+struct SimpleVertex {
+    pub pos: Vector,
+}
+
+impl SimpleVertex {
+    fn new (pos: Vector) -> Self { Self { pos } }
+
+    fn layout() -> &'static [InputElementDesc<'static>] {
+        static LAYOUT : [InputElementDesc; 1] = input_layout! {
+            { "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0,  0, D3D11_INPUT_PER_VERTEX_DATA, 0 },
+        };
+        &LAYOUT[..]
+    }
 }
