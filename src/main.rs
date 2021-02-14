@@ -227,29 +227,49 @@ fn main() {
 
 
         let hwnd = CreateWindowExW(
-            0, // window style
-            wch_c!("SampleWndClass").as_ptr(),
-            wch_c!("Title").as_ptr(),
-            WS_OVERLAPPEDWINDOW,
-            CW_USEDEFAULT, // x
-            CW_USEDEFAULT, // y
-            800, // nwidth
-            600, // nheight
-            null_mut(), // parent
-            null_mut(), // menu
-            hExeInstance,
-            null_mut() // lpParam
+            0,                                  // extended style
+            wch_c!("SampleWndClass").as_ptr(),  // window class
+            wch_c!("Title").as_ptr(),           // window title
+            WS_OVERLAPPEDWINDOW | WS_VISIBLE,   // basic style
+            CW_USEDEFAULT,                      // x
+            CW_USEDEFAULT,                      // y
+            800,                                // width
+            600,                                // height
+            null_mut(),                         // parent window
+            null_mut(),                         // window menu bar
+            hExeInstance,                       // instance containing the window class
+            null_mut()                          // lpParam
         );
         expect!(!hwnd.is_null());
+        //
+        // This creates an actual top level window, using the window class we defined earlier.
+        //
+        // `WS_OVERLAPPEDWINDOW` is a style that's fairly typical for most top level windows - title bar, minimize and
+        // maximize buttons, resizable border, etc.  Don't confuse this with `WS_OVERLAPPED`!
+        //
+        // `WS_VISIBLE` makes the window visible by default.  If not specified, we'd need to call `ShowWindow` later.
+        // `CW_USEDEFAULT` lets the OS decide where to position the window, and can be used for sizes as well.
+        // `hExeInstance` is specified to find `SampleWndClass` in the current executable.  If a DLL provided window
+        // classes that we wanted to use instead, we'd provide an `hInstance` to that DLL instead.
+        //
+        // MSDN:    https://docs.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-createwindowexw
+        // MSDN:    https://docs.microsoft.com/en-us/windows/win32/winmsg/window-styles
 
-        let nCmdShow = SW_SHOW;
-        expect!(ShowWindow(hwnd, nCmdShow) == 0);
 
         let mut rect : RECT = zeroed();
         expect!(GetClientRect(hwnd, &mut rect) != 0);
-
         let w = (rect.right - rect.left) as u32;
         let h = (rect.bottom - rect.top) as u32;
+        //
+        // We just created the window with a known size, so why are we querying the window for its size immediately?
+        //
+        // We specified the size for the *whole* window, including the border, titlebar, menubars, etc. - however, D3D
+        // will only render to the "client area" of the window which is the inside portion of the window that *doesn't*
+        // include the border, titlebar, etc. - so we need to figure out this smaller client size to create buffers of
+        // matching size, that won't be squashed or cropped when displayed.
+        //
+        // MSDN:    https://docs.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-getclientrect
+
 
         let swap_chain_desc = DXGI_SWAP_CHAIN_DESC {
             BufferDesc: DXGI_MODE_DESC {
