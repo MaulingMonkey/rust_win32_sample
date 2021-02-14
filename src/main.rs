@@ -107,8 +107,8 @@ fn main() {
         // If we panic "regularly" and not via `expect!`, I still want a breakpoint - see `expect!` above for details.
 
 
-        let hInstance = GetModuleHandleW(null());
-        expect!(!hInstance.is_null());
+        let hExeInstance = GetModuleHandleW(null());
+        expect!(!hExeInstance.is_null());
         //
         // By passing `NULL` to `GetModuleHandleW`, we retrieve an `HMODULE` to the currently executing process / .exe.
         // A lot of Win32 functions treat `HMODULE`s as a namespace or container of resources.
@@ -119,18 +119,18 @@ fn main() {
         let hCursor = LoadCursorW(null_mut(), IDC_ARROW);
         expect!(!hCursor.is_null());
         //
-        // We want to load a standard system `IDC_*` cursor, so we pass `NULL` instead of our own `hInstance`.
+        // We want to load a standard system `IDC_*` cursor, so we pass `NULL` instead of our own `hExeInstance`.
         //
         // If we had embedded a custom cursor into our executable via an .rc file, and wanted to use that cursor, *then*
-        // we would pass `hInstance`.  Alternatively, we could pass an `HMODULE` to a DLL if we wanted to load cursors
-        // embedded in that DLL.
+        // we would pass `hExeInstance`.  Alternatively, we could pass an `HMODULE` to a DLL if we wanted to load
+        // cursors embedded in that DLL.
         //
         // MSDN:    https://docs.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-loadcursorw
 
 
         let wc = WNDCLASSW {
             lpfnWndProc: Some(sample_wndproc),
-            hInstance,
+            hInstance: hExeInstance,
             hCursor,
             lpszClassName: wch_c!("SampleWndClass").as_ptr(),
             .. zeroed()
@@ -141,7 +141,7 @@ fn main() {
         // there's a reason Microsoft named it "Windows"!  For ease of reuse, Win32 first requires you to define a
         // window *class*, and then you can create multiple windows of that window class.
         //
-        // Here, we're having our executable, `hInstance`, define a single window class, `SampleWndClass`, which is a
+        // Here, we're having our executable, `hExeInstance`, define a single window class, `SampleWndClass`, which is a
         // full blown top level window.  `hCursor` (`IDC_ARROW`) will be used when the cursor hovers over the window,
         // and `sample_wndproc` will be called whenever the window is resized, clicked, focused, typed into, redrawn...
         //
@@ -216,7 +216,7 @@ fn main() {
             600, // nheight
             null_mut(), // parent
             null_mut(), // menu
-            hInstance,
+            hExeInstance,
             null_mut() // lpParam
         );
         expect!(!hwnd.is_null());
