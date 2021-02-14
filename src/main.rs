@@ -23,14 +23,14 @@
 //      "windows" programs won't have a console at all.  They can spawn new consoles with `AllocConsole()` however.
 
 #![allow(non_snake_case)]
-// Rust will typically warn if you use variable names like `hInstance`, preferring `h_instance` instead.
-// However, several Win32 structs contain names like `hInstance`, and matching those names allows the use of:
+// Rust will typically warn if you use variable names like `hCursor`, preferring `h_cursor` instead.
+// However, several Win32 structs contain names like `hCursor`, and matching those names allows the use of:
 //
-//      WNDCLASSW { hInstance, ... }
+//      WNDCLASSW { hCursor, ... }
 //
 // Instead of:
 //
-//      WNDCLASSW { hInstance: h_instance, ... }
+//      WNDCLASSW { hCursor: h_cursor, ... }
 //
 // Which is much less convenient ;)
 
