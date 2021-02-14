@@ -145,7 +145,28 @@ fn main() {
         // full blown top level window.  `hCursor` (`IDC_ARROW`) will be used when the cursor hovers over the window,
         // and `sample_wndproc` will be called whenever the window is resized, clicked, focused, typed into, redrawn...
         //
+        // Proper Unicode support in many/most Win32 APIs requires null terminated UTF16 strings.  I'm using the
+        // excellent `wchar::wch_c!` proc macro here which expands `wch_c!("Test").as_ptr()` into something like:
+        //
+        //      [b'T' as u16, b'e' as u16, b's' as u16, b't' as u16, b'\0' as u16].as_ptr()
+        //
+        // Note that this only works because the array is static.  If you used `vec![...]` instead, `lpszClassName`
+        // would become a dangling pointer before `RegisterClassW` is called!  Even worse, unless you enable the Win32
+        // debug heap, the code will usually work - meaning you won't know your code is a broken, ticking time bomb!
+        // If you use dynamic strings/vecs, *name your temporaries and don't forget to add a 0*.  For example:
+        //
+        //      let lpszClassName = format!("SampleWndClass").encode_utf16().chain(Some(0)).collect::<Vec<u16>>();
+        //      let wc = WNDCLASSW { lpszClassName: lpszClassName.as_ptr(), ... };
+        //
+        // Or for `std::ffi::OsStr`s:
+        //
+        //      use std::ffi::OsStr;
+        //      use std::os::windows::prelude::*; // OsStrExt
+        //      let lpszClassName = OsStr::new("SampleWndClass").encode_wide().chain(Some(0)).collect::<Vec<u16>>();
+        //      let wc = WNDCLASSW { lpszClassName: lpszClassName.as_ptr(), ... };
+        //
         // MSDN:    https://docs.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-registerclassw
+        // Ref:     https://docs.rs/wchar/0.6.1/wchar/macro.wch_c.html
 
 
         unsafe extern "system" fn sample_wndproc(hwnd: HWND, uMsg: UINT, wParam: WPARAM, lParam: LPARAM) -> LRESULT {
