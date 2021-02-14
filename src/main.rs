@@ -129,25 +129,81 @@ fn main() {
 
 
         let wc = WNDCLASSW {
-            lpfnWndProc: Some(window_proc),
+            lpfnWndProc: Some(sample_wndproc),
             hInstance,
             hCursor,
             lpszClassName: wch_c!("SampleWndClass").as_ptr(),
             .. zeroed()
         };
         expect!(RegisterClassW(&wc) != 0);
+        //
+        // In windows, everything is a window.  Windows are windows, buttons are windows, textboxes are windows...
+        // there's a reason Microsoft named it "Windows"!  For ease of reuse, Win32 first requires you to define a
+        // window *class*, and then you can create multiple windows of that window class.
+        //
+        // Here, we're having our executable, `hInstance`, define a single window class, `SampleWndClass`, which is a
+        // full blown top level window.  `hCursor` (`IDC_ARROW`) will be used when the cursor hovers over the window,
+        // and `sample_wndproc` will be called whenever the window is resized, clicked, focused, typed into, redrawn...
+        //
+        // MSDN:    https://docs.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-registerclassw
 
-        unsafe extern "system" fn window_proc(hwnd: HWND, uMsg: UINT, wParam: WPARAM, lParam: LPARAM) -> LRESULT {
+
+        unsafe extern "system" fn sample_wndproc(hwnd: HWND, uMsg: UINT, wParam: WPARAM, lParam: LPARAM) -> LRESULT {
+            // Our sample wndproc is dreadfully boring:  it simply quits the program when the window is destroyed, and
+            // uses default behavior for every other message.
+
             match uMsg {
                 WM_DESTROY => {
+                    // This message is recieved when the HWND is being destroyed.  This can occur even if you're not
+                    // currently in a message loop / processing messages!  For example, if anything `DestroyWindow()`s
+                    // your window, that can directly call this window proc.
+                    //
+                    // After it `WM_DESTROY` (and `WM_NCDESTROY`) have been recieved, it's no longer strictly sound to
+                    // use the `HWND` in question, so this is a great spot to unregister HWNDs from any global lists you
+                    // might be using to keep track of alive windows, and a great place to explode if you have scopes
+                    // open that might expect those windows to be alive.  That said:  unwinding via Rust panic!()s over
+                    // the Win32 FFI boundary is unsound as well, so consider either using panic = "abort" (for
+                    // applications) or using some other, non-unwinding / instantly fatal error reporting mechanism (for
+                    // libraries that register Win32 window classes.)
+                    //
+                    // MSDN:    https://docs.microsoft.com/en-us/windows/win32/winmsg/wm-destroy
+
                     PostQuitMessage(0);
-                    0
+                    //
+                    // This simply posts a `WM_QUIT` message to the windows message loop.  While we could simply call
+                    // `std::process::exit(0);`, using WM_QUIT gives the rest of the application a chance to save files,
+                    // detect memory leaks, and otherwise more gracefully shut down.
+                    //
+                    // Since this application only ever has a single window, we probably want the application to exit if
+                    // it's closed.  Multi-window applications might keep track of how many windows are open, and only
+                    // call this when the last window has been destroyed.
+                    //
+                    // MSDN:    https://docs.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-postquitmessage
+
+                    0 // "If an application processes this message, it should return zero." (from WM_DESTROY's docs)
                 },
                 _ => {
                     DefWindowProcW(hwnd, uMsg, wParam, lParam)
+                    //
+                    // DefWindowProcW provides default behavior for most messages.  This function is 100% `unsafe` by
+                    // Rust's definition of the keyword.  While `hwnd` hasn't been a real pointer in a long time[1][2],
+                    // it once was, and `wParam`/`lParam` still frequently are.  When they are pointers, and what kinds
+                    // of data they point to, is determined by the value of `uMsg`... and possibly by what class of
+                    // window `hwnd` is for custom `WM_USER+N` messages.
+                    //
+                    // DefWindowProcW can and will dereference some of these pointers.  As such, `sample_wndproc` must
+                    // be marked `unsafe` to be sound.  It's prudent to mark any window proc `unsafe`:  even if you can
+                    // implement it soundly for the messages you're currently handling, handling new message types might
+                    // require dereferencing raw pointers which would force you to make breaking API changes (adding
+                    // `unsafe` later.)
+                    //
+                    // MSDN:    https://docs.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-defwindowprocw
+                    // [1]      https://devblogs.microsoft.com/oldnewthing/20091210-00/?p=15713 "Only an idiot would have parameter validation, and only an idiot would not have it"
+                    // [2]      https://devblogs.microsoft.com/oldnewthing/20070716-00/?p=26003 "How are window manager handles determined in 16-bit Windows and Windows 95?"
                 },
             }
         }
+
 
         let hwnd = CreateWindowExW(
             0, // window style
