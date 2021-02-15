@@ -9,6 +9,7 @@ mmrbi   = "0.0.15"
 
 [target.'cfg(windows)'.dependencies]
 wchar   = "0.6"
+mcom    = "0.1"
 
 [target.'cfg(windows)'.dependencies.winapi]
 version = "0.3.7"

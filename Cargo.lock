@@ -7,6 +7,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e0e75706f4ee4c69aaa277f73a7a6ad60222193938d4266b929aacd17ebb29b9"
 
 [[package]]
+name = "mcom"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3f82999c8b31c7b8a8a8f1815836d365055c86daa13385314d5bc8fabb1dbc95"
+dependencies = [
+ "winapi",
+]
+
+[[package]]
 name = "mmrbi"
 version = "0.0.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -43,6 +52,7 @@ dependencies = [
 name = "rust_win32_d3d11"
 version = "0.1.0"
 dependencies = [
+ "mcom",
  "mmrbi",
  "wchar",
  "winapi",

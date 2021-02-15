@@ -271,58 +271,121 @@ fn main() {
         // MSDN:    https://docs.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-getclientrect
 
 
+        // Okay, we've reached the first bit of D3D11 code.  The first thing we need to do is create a whole slew of
+        // core objects.  `D3D11CreateDeviceAndSwapChain`, which we'll call next, creates three of them:
+        //
+        //  1.  The swap chain.  This is just a set of one or more buffers - each describing the contents of an entire
+        //      window or screen - and an interface for sending those buffers to the OS for them to be displayed.
+        //      Multiple buffers are used to allow your application to modify/render one buffer, while the GPU or OS is
+        //      busy displays the last fully completed buffer at the same time.  We can then *swap* between them once
+        //      we're done rendering, and the OS is ready for a new frame.
+        //
+        //      https://en.wikipedia.org/wiki/Multiple_buffering
+        //      https://docs.microsoft.com/en-us/windows/win32/direct3d9/what-is-a-swap-chain-
+        //
+        //  2.  The device.  This generally refers to a specific GPU, and is used as a factory to create most resources
+        //      (textures, vertex buffers, shaders, etc).  There are a few cases where this can be yanked out from under
+        //      you:  An external GPU can be unplugged, or the driver can be updated/hang/crash, or the GPU can hang.
+        //
+        //      To muddy the waters a bit:  Your window might be getting rendered with one GPU, but displayed on screens
+        //      attached to another GPU.  And I'm not even sure what happens in multi-GPU SLI setups.
+        //
+        //      https://en.wikipedia.org/wiki/Scalable_Link_Interface
+        //
+        //  3.  A device context.  Device contexts accept various rendering commands and are full of tons of state.
+        //      You always have exactly one "immediate" context per device - what you're asking the GPU to do right now.
+        //      This is also the device context `D3D11CreateDeviceAndSwapChain` returns.
+        //
+        //      Optionally, you can also create "deferred" contexts, which you can later run on the immediate context.
+        //      These are mainly intended to enable multithreaded rendering, but might also be useful for isolating
+        //      middleware such that it's changes to the device context's state don't break your own rendering code.
+        //
+        // In Direct3D 9, "device" and "device context" were conflated concepts.
+        // In OpenGL, all three objects are vaguely conflated together into the concept of an "OpenGL Context".
+
+
         let swap_chain_desc = DXGI_SWAP_CHAIN_DESC {
             BufferDesc: DXGI_MODE_DESC {
-                Width:  w,
-                Height: h,
-                RefreshRate: DXGI_RATIONAL { Numerator: 60, Denominator: 1 },
-                Format: DXGI_FORMAT_R8G8B8A8_UNORM,
-                ScanlineOrdering: DXGI_MODE_SCANLINE_ORDER_UNSPECIFIED,
-                Scaling: DXGI_MODE_SCALING_CENTERED,
+                Width:              w,
+                Height:             h,
+                RefreshRate:        zeroed(),                               // Requested refresh rate (AFAIK, this is only used for fullscreen modes)
+                Format:             DXGI_FORMAT_R8G8B8A8_UNORM,             // https://docs.microsoft.com/en-us/windows/win32/api/dxgiformat/ne-dxgiformat-dxgi_format
+                ScanlineOrdering:   DXGI_MODE_SCANLINE_ORDER_UNSPECIFIED,   // https://docs.microsoft.com/en-us/previous-versions/windows/desktop/legacy/bb173067(v=vs.85) / https://en.wikipedia.org/wiki/Interlaced_video
+                Scaling:            DXGI_MODE_SCALING_CENTERED,             // How to re-scale the buffers to the window's client area (if mismatched)
             },
-            SampleDesc: DXGI_SAMPLE_DESC { Count: 1, Quality: 0 },
-            BufferUsage: DXGI_USAGE_RENDER_TARGET_OUTPUT,
-            BufferCount: 1,
-            OutputWindow: hwnd,
-            Windowed: 1,
-            SwapEffect: DXGI_SWAP_EFFECT_DISCARD,
-            Flags: 0,
+            SampleDesc:     DXGI_SAMPLE_DESC { Count: 1, Quality: 0 },  // No multisampling ( https://en.wikipedia.org/wiki/Multisample_anti-aliasing )
+            BufferUsage:    DXGI_USAGE_RENDER_TARGET_OUTPUT,            // Required flag
+            BufferCount:    1,                          // Only use a single buffer.  We presumably will be blocked from rendering when Windows is rendering our window.
+            OutputWindow:   hwnd,                       // Render to our window
+            Windowed:       1,                          // Stay as a window instead of entering fullscreen mode
+            SwapEffect:     DXGI_SWAP_EFFECT_DISCARD,   // Fastest option - assumes we'll redraw everything.  https://docs.microsoft.com/en-us/windows/win32/api/dxgi/ne-dxgi-dxgi_swap_effect
+            Flags:          0,                          // https://docs.microsoft.com/en-us/windows/win32/api/dxgi/ne-dxgi-dxgi_swap_chain_flag
         };
+        //
+        // Describe what settings we want to use for the swap chain.  Some settings are ignored for windowed modes.
+        //
+        // MSDN:    https://docs.microsoft.com/en-us/windows/win32/api/dxgi/ns-dxgi-dxgi_swap_chain_desc
+
+
+        let feature_levels = &[D3D_FEATURE_LEVEL_11_0];
+        //
+        // "Feature Levels" are Direct3D 11's way of letting you select what generation of GPU hardware you want to
+        // target.  You can use GPUs which "only" support "Direct3D 10" from Direct3D 11 by using D3D_FEATURE_LEVEL_10_0.
+        // Unless your rendering code provides multiple codepaths for newer vs older GPUs, you probably only need to
+        // specify a single feature level - the minimum feature level you support.
+        //
+        // MSDN:    https://docs.microsoft.com/en-us/windows/win32/api/d3dcommon/ne-d3dcommon-d3d_feature_level
+
 
         let mut swap_chain = null_mut();
         let mut device = null_mut();
         let mut device_context = null_mut();
-        let feature_levels = &[D3D_FEATURE_LEVEL_11_0];
         expect!(SUCCEEDED(D3D11CreateDeviceAndSwapChain(
-            null_mut(), // adapter
-            D3D_DRIVER_TYPE_HARDWARE,
-            null_mut(), // software
-            0, // flags
+            // Inputs
+            null_mut(),                 // adapter - you might want to let the user specify which display/GPU to use through this
+            D3D_DRIVER_TYPE_HARDWARE,   // https://docs.microsoft.com/en-us/windows/win32/api/d3dcommon/ne-d3dcommon-d3d_driver_type
+            null_mut(),                 // software - you almost certainly don't want to use this!  Used only for *custom* software drivers, and is supposedly quite slow.
+            0,                          // https://docs.microsoft.com/en-us/windows/win32/api/d3d11/ne-d3d11-d3d11_create_device_flag
             feature_levels.as_ptr(),
             feature_levels.len() as u32,
-            D3D11_SDK_VERSION,
+            D3D11_SDK_VERSION,          // magic constant so d3d11.dll knows what header(s) you built with / `winapi` was designed to use
             &swap_chain_desc,
+            // Outputs
             &mut swap_chain,
             &mut device,
-            null_mut(),
+            null_mut(),                 // the selected level from `feature_levels` (e.g. `D3D_FEATURE_LEVEL_11_0`)
             &mut device_context
         )));
-        expect!(!swap_chain     .is_null());
-        expect!(!device         .is_null());
-        expect!(!device_context .is_null());
+        let swap_chain      = mcom::Rc::from_raw(swap_chain);
+        let device          = mcom::Rc::from_raw(device);
+        let device_context  = mcom::Rc::from_raw(device_context);
+        //
+        // `swap_chain`, `device`, and `device_context` are all intrusively refcounted COM objects (or close enough).
+        //
+        // The basic rule of thumb is that any method with COM objects as out-parameters either creates the object with
+        // an initial refcount of 1, or increments the refcount by 1 if the object already existed.  As such, all such
+        // calls should eventually be paired with a corresponding `(*com_object).Release()` call to avoid memory leaks.
+        //
+        // Here, I'm using `mcom::Rc`, which will automatically call `Release()` when dropped.  It also provides a
+        // `Deref` implementation, so I can write `com_object.Method()` instead of spamming `(*com_object).Method()`.
+        //
+        // MSDN:    https://docs.microsoft.com/en-us/windows/win32/api/d3d11/nf-d3d11-d3d11createdeviceandswapchain
+        // Ref:     https://docs.rs/mcom/0.1.1/mcom/struct.Rc.html#method.from_raw
+        // Alt:     https://docs.rs/wio/0.2.2/x86_64-pc-windows-msvc/wio/com/struct.ComPtr.html
+
 
         let mut back_buffer = null_mut();
-        expect!(SUCCEEDED((*swap_chain).GetBuffer(0, &ID3D11Texture2D::uuidof(), &mut back_buffer)));
-        let back_buffer = back_buffer as * mut _;
+        expect!(SUCCEEDED(swap_chain.GetBuffer(0, &ID3D11Texture2D::uuidof(), &mut back_buffer)));
+        let back_buffer = mcom::Rc::from_raw(back_buffer as *mut ID3D11Texture2D);
 
         let mut rtv = null_mut();
-        expect!(SUCCEEDED((*device).CreateRenderTargetView(back_buffer, null_mut(), &mut rtv)));
-        expect!(!rtv.is_null());
+        expect!(SUCCEEDED(device.CreateRenderTargetView(back_buffer.up_ref().as_ptr(), null_mut(), &mut rtv)));
+        let rtv = mcom::Rc::from_raw(rtv);
 
-        (*device_context).OMSetRenderTargets(1, [rtv].as_ptr(), null_mut());
+        device_context.OMSetRenderTargets(1, [rtv.as_ptr()].as_ptr(), null_mut());
 
         let vp = D3D11_VIEWPORT { Width: w as f32, Height: h as f32, MinDepth: 0.0, MaxDepth: 1.0, TopLeftX: 0.0, TopLeftY: 0.0 };
-        (*device_context).RSSetViewports(1, [vp].as_ptr());
+        device_context.RSSetViewports(1, [vp].as_ptr());
 
         let vs_bin = include_bytes!("../target/assets/vs.bin");
         let ps_bin = include_bytes!("../target/assets/ps.bin");
@@ -330,8 +393,12 @@ fn main() {
         let mut ps = null_mut();
         expect!(SUCCEEDED((*device).CreateVertexShader(vs_bin.as_ptr() as *const _, vs_bin.len(), null_mut(), &mut vs)));
         expect!(SUCCEEDED((*device).CreatePixelShader( ps_bin.as_ptr() as *const _, ps_bin.len(), null_mut(), &mut ps)));
+        let vs = mcom::Rc::from_raw(vs);
+        let ps = mcom::Rc::from_raw(ps);
+
         let mut input_layout = null_mut();
         expect!(SUCCEEDED((*device).CreateInputLayout(SimpleVertex::layout().as_ptr() as *const _, SimpleVertex::layout().len() as UINT, vs_bin.as_ptr() as *const _, vs_bin.len(), &mut input_layout)));
+        let input_layout = mcom::Rc::from_raw(input_layout);
 
         let verticies = [
             SimpleVertex::new(Vector::new( 0.0,  0.5, 0.5, 0.0)),
@@ -354,7 +421,8 @@ fn main() {
         };
 
         let mut vertex_buffer = null_mut();
-        expect!(SUCCEEDED((*device).CreateBuffer(&bd, &init_data, &mut vertex_buffer)));
+        expect!(SUCCEEDED(device.CreateBuffer(&bd, &init_data, &mut vertex_buffer)));
+        let vertex_buffer = mcom::Rc::from_raw(vertex_buffer);
 
         loop {
             let mut msg : MSG = zeroed();
@@ -364,14 +432,14 @@ fn main() {
                 DispatchMessageW(&msg);
             }
 
-            (*device_context).ClearRenderTargetView(rtv, &[0.1, 0.2, 0.3, 1.0]);
-            (*device_context).IASetInputLayout(input_layout);
-            (*device_context).IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-            (*device_context).IASetVertexBuffers(0, 1, [vertex_buffer].as_ptr(), [size_of::<SimpleVertex>() as UINT].as_ptr(), [0].as_ptr());
-            (*device_context).VSSetShader(vs, null_mut(), 0);
-            (*device_context).PSSetShader(ps, null_mut(), 0);
-            (*device_context).Draw(3, 0);
-            (*swap_chain).Present(0, 0);
+            device_context.ClearRenderTargetView(rtv.as_ptr(), &[0.1, 0.2, 0.3, 1.0]);
+            device_context.IASetInputLayout(input_layout.as_ptr());
+            device_context.IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+            device_context.IASetVertexBuffers(0, 1, [vertex_buffer.as_ptr()].as_ptr(), [size_of::<SimpleVertex>() as UINT].as_ptr(), [0].as_ptr());
+            device_context.VSSetShader(vs.as_ptr(), null_mut(), 0);
+            device_context.PSSetShader(ps.as_ptr(), null_mut(), 0);
+            device_context.Draw(3, 0);
+            swap_chain.Present(0, 0);
         }
     };
 }
