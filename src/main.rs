@@ -399,10 +399,13 @@ fn main() {
         let ps_bin = include_bytes!("../target/assets/ps.bin");
         let mut vs = null_mut();
         let mut ps = null_mut();
-        expect!(SUCCEEDED((*device).CreateVertexShader(vs_bin.as_ptr() as *const _, vs_bin.len(), null_mut(), &mut vs)));
-        expect!(SUCCEEDED((*device).CreatePixelShader( ps_bin.as_ptr() as *const _, ps_bin.len(), null_mut(), &mut ps)));
+        expect!(SUCCEEDED((*device).CreateVertexShader(vs_bin.as_ptr().cast(), vs_bin.len(), null_mut(), &mut vs)));
+        expect!(SUCCEEDED((*device).CreatePixelShader( ps_bin.as_ptr().cast(), ps_bin.len(), null_mut(), &mut ps)));
         let vs = mcom::Rc::from_raw(vs);
         let ps = mcom::Rc::from_raw(ps);
+        // MSDN:    https://docs.microsoft.com/en-us/windows/win32/api/d3d11/nf-d3d11-id3d11device-createpixelshader
+        // MSDN:    https://docs.microsoft.com/en-us/windows/win32/api/d3d11/nf-d3d11-id3d11device-createvertexshader
+
 
         let mut input_layout = null_mut();
         expect!(SUCCEEDED((*device).CreateInputLayout(SimpleVertex::layout().as_ptr() as *const _, SimpleVertex::layout().len() as UINT, vs_bin.as_ptr() as *const _, vs_bin.len(), &mut input_layout)));
