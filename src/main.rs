@@ -50,7 +50,7 @@ use winapi::um::libloaderapi::*;
 use winapi::um::winuser::*;
 
 use std::marker::PhantomData;
-use std::mem::{size_of, size_of_val, zeroed};
+use std::mem::{size_of_val, zeroed};
 use std::ptr::{null, null_mut};
 
 
@@ -431,6 +431,49 @@ fn main() {
         }
 
 
+        // That's a bit boring, so let's add a triangle.
+        //
+        // Let's first talk about the the default, post-transformation, SV_POSITION coordinate space:
+        //
+        //  1)  Visible X coordinates range from -1.0 (left edge)   to +1.0 (right edge)
+        //  2)  Visible Y coordinates range from -1.0 (bottom edge) to +1.0 (top edge)
+        //  3)  Visible Z coordinates range from  0.0 (near plane)  to  1.0 (far plane)
+        //      The triangle will be clipped if it's outside of this range.
+        //
+        //  4)  The W component is required, but ignored by default.
+        //
+        //  5)  Triangles defined in clockwise order are considered "front" facing.
+        //      "Back" facing triangles are discarded by default.
+        //
+        // So, this defines a front-facing triangle roughly in the middle of the screen:
+        //
+        let verticies : &[[f32; 4]] = &[
+            //     POSITION0
+            //  x,    y,   z,   w
+            [ 0.0,  0.5, 0.5, 0.0],
+            [ 0.5, -0.5, 0.5, 0.0],
+            [-0.5, -0.5, 0.5, 0.0],
+        ];
+
+        // We could use any other coordinate system we want, but we'd then have to transform it in our vertex shader.
+        // To make our demo simple, we'll simply leave said vertex completely untransformed.
+        // D3D11 can't render using verticies in regular system memory, so let's upload them to a vertex buffer on the GPU:
+        //
+        let bd = D3D11_BUFFER_DESC {                    // https://docs.microsoft.com/en-us/windows/win32/api/d3d11/ns-d3d11-d3d11_buffer_desc
+            Usage:      D3D11_USAGE_DEFAULT,            // https://docs.microsoft.com/en-us/windows/win32/api/d3d11/ne-d3d11-d3d11_usage
+            ByteWidth:  size_of_val(verticies) as UINT, // size of the entire buffer
+            BindFlags:  D3D11_BIND_VERTEX_BUFFER,       // https://docs.microsoft.com/en-us/windows/win32/api/d3d11/ne-d3d11-d3d11_bind_flag
+            .. zeroed()
+        };
+        let init_data = D3D11_SUBRESOURCE_DATA {        // https://docs.microsoft.com/en-us/windows/win32/api/d3d11/ns-d3d11-d3d11_subresource_data
+            pSysMem: verticies.as_ptr() as *const _,
+            .. zeroed()
+        };
+        let mut vertex_buffer = null_mut();
+        expect!(SUCCEEDED(device.CreateBuffer(&bd, &init_data, &mut vertex_buffer)));
+        let vertex_buffer = mcom::Rc::from_raw(vertex_buffer);
+
+
         let vs_bin = include_bytes!("../target/assets/vs.bin");
         let ps_bin = include_bytes!("../target/assets/ps.bin");
         let mut vs = null_mut();
@@ -447,29 +490,6 @@ fn main() {
         expect!(SUCCEEDED((*device).CreateInputLayout(SimpleVertex::layout().as_ptr() as *const _, SimpleVertex::layout().len() as UINT, vs_bin.as_ptr() as *const _, vs_bin.len(), &mut input_layout)));
         let input_layout = mcom::Rc::from_raw(input_layout);
 
-        let verticies = [
-            SimpleVertex::new(Vector::new( 0.0,  0.5, 0.5, 0.0)),
-            SimpleVertex::new(Vector::new( 0.5, -0.5, 0.5, 0.0)),
-            SimpleVertex::new(Vector::new(-0.5, -0.5, 0.5, 0.0)),
-        ];
-
-        let bd = D3D11_BUFFER_DESC {
-            Usage:              D3D11_USAGE_DEFAULT,
-            ByteWidth:          size_of_val(&verticies) as UINT,
-            BindFlags:          D3D11_BIND_VERTEX_BUFFER,
-            CPUAccessFlags:     0,
-            MiscFlags:          0,
-            .. zeroed()
-        };
-
-        let init_data = D3D11_SUBRESOURCE_DATA {
-            pSysMem: verticies.as_ptr() as *const _,
-            .. zeroed()
-        };
-
-        let mut vertex_buffer = null_mut();
-        expect!(SUCCEEDED(device.CreateBuffer(&bd, &init_data, &mut vertex_buffer)));
-        let vertex_buffer = mcom::Rc::from_raw(vertex_buffer);
 
         loop {
             let mut msg : MSG = zeroed();
@@ -485,7 +505,7 @@ fn main() {
             device_context.ClearRenderTargetView(rtv.as_ptr(), &[0.1, 0.2, 0.3, 1.0]);
             device_context.IASetInputLayout(input_layout.as_ptr());
             device_context.IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-            device_context.IASetVertexBuffers(0, 1, [vertex_buffer.as_ptr()].as_ptr(), [size_of::<SimpleVertex>() as UINT].as_ptr(), [0].as_ptr());
+            device_context.IASetVertexBuffers(0, 1, [vertex_buffer.as_ptr()].as_ptr(), [size_of_val(&verticies[0]) as UINT].as_ptr(), [0].as_ptr());
             device_context.VSSetShader(vs.as_ptr(), null_mut(), 0);
             device_context.PSSetShader(ps.as_ptr(), null_mut(), 0);
             device_context.Draw(3, 0);
@@ -516,28 +536,10 @@ macro_rules! input_layout {
     };
 }
 
-#[repr(C, align(16))]
-#[derive(Clone, Copy, Debug)]
-struct Vector {
-    pub x: f32,
-    pub y: f32,
-    pub z: f32,
-    pub w: f32,
-}
 
-impl Vector {
-    fn new (x: f32, y: f32, z: f32, w: f32) -> Self { Self {x, y, z, w} }
-}
-
-#[repr(C)]
-#[derive(Clone, Copy, Debug)]
-struct SimpleVertex {
-    pub pos: Vector,
-}
+struct SimpleVertex;
 
 impl SimpleVertex {
-    fn new (pos: Vector) -> Self { Self { pos } }
-
     fn layout() -> &'static [InputElementDesc<'static>] {
         static LAYOUT : [InputElementDesc; 1] = input_layout! {
             { "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0,  0, D3D11_INPUT_PER_VERTEX_DATA, 0 },
