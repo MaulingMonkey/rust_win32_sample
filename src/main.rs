@@ -395,6 +395,42 @@ fn main() {
         // MSDN:    https://docs.microsoft.com/en-us/windows/win32/api/d3d11/nf-d3d11-id3d11device-createrendertargetview
 
 
+        // We've set up enough stuff that we can start rendering a blank screen!  Let's do so for a bit.
+        //
+        for _frame in 0..60 {
+
+            let mut msg : MSG = zeroed();
+            while PeekMessageW(&mut msg, null_mut(), 0, 0, PM_REMOVE) != 0 { // https://docs.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-peekmessagew
+                if msg.message == WM_QUIT { return; } // Triggered by that PostQuitMessage(0) from earlier.
+                TranslateMessage(&msg); // https://docs.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-translatemessage
+                DispatchMessageW(&msg); // https://docs.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-dispatchmessagew
+            }
+            //
+            // The traditional animated window message loop.  GetMessageW blocks, so instead we use PeekMessageW which
+            // will return `FALSE` once the message queue is exhausted.  TranslateMessage is critical for generating
+            // WM_CHAR events from WM_KEYDOWN events, and DispatchMessageW is critical for dispatching many events
+            // to their corresponding WndProc s.
+
+
+            device_context.ClearRenderTargetView(rtv.as_ptr(), &[0.1, 0.2, 0.3, 1.0]);
+            //
+            // Clears the entire RTV / back buffer / window client area, to a very dark blue.
+            //
+            // MSDN:    https://docs.microsoft.com/en-us/windows/win32/api/d3d11/nf-d3d11-id3d11devicecontext-clearrendertargetview
+
+
+            swap_chain.Present(1, 0);
+            //
+            // Present what we just rendered on the actual window (nothing will be displayed until we call this.)
+            //
+            // By specifying `1` for the SyncInterval here, we'll wait for / syncronize with the monitor's vsync.
+            // Assuming a 60hz monitor, GPU, etc. (bad assumption!), this whole loop will take about a second to execute.
+            //
+            // MSDN:    https://docs.microsoft.com/en-us/windows/win32/api/dxgi/nf-dxgi-idxgiswapchain-present
+
+        }
+
+
         let vs_bin = include_bytes!("../target/assets/vs.bin");
         let ps_bin = include_bytes!("../target/assets/ps.bin");
         let mut vs = null_mut();
@@ -453,7 +489,7 @@ fn main() {
             device_context.VSSetShader(vs.as_ptr(), null_mut(), 0);
             device_context.PSSetShader(ps.as_ptr(), null_mut(), 0);
             device_context.Draw(3, 0);
-            swap_chain.Present(0, 0);
+            swap_chain.Present(1, 0);
         }
     };
 }
