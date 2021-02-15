@@ -375,11 +375,11 @@ fn main() {
 
 
         let mut back_buffer = null_mut();
-        expect!(SUCCEEDED(swap_chain.GetBuffer(0, &ID3D11Texture2D::uuidof(), &mut back_buffer)));
-        let back_buffer = mcom::Rc::from_raw(back_buffer as *mut ID3D11Texture2D);
+        expect!(SUCCEEDED(swap_chain.GetBuffer(0, &ID3D11Resource::uuidof(), &mut back_buffer)));
+        let back_buffer = mcom::Rc::from_raw(back_buffer as *mut ID3D11Resource);
 
         let mut rtv = null_mut();
-        expect!(SUCCEEDED(device.CreateRenderTargetView(back_buffer.up_ref().as_ptr(), null_mut(), &mut rtv)));
+        expect!(SUCCEEDED(device.CreateRenderTargetView(back_buffer.as_ptr(), null_mut(), &mut rtv)));
         let rtv = mcom::Rc::from_raw(rtv);
 
         device_context.OMSetRenderTargets(1, [rtv.as_ptr()].as_ptr(), null_mut());
