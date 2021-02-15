@@ -394,10 +394,6 @@ fn main() {
         let rtv = mcom::Rc::from_raw(rtv);
         // MSDN:    https://docs.microsoft.com/en-us/windows/win32/api/d3d11/nf-d3d11-id3d11device-createrendertargetview
 
-        device_context.OMSetRenderTargets(1, [rtv.as_ptr()].as_ptr(), null_mut());
-
-        let vp = D3D11_VIEWPORT { Width: w as f32, Height: h as f32, MinDepth: 0.0, MaxDepth: 1.0, TopLeftX: 0.0, TopLeftY: 0.0 };
-        device_context.RSSetViewports(1, [vp].as_ptr());
 
         let vs_bin = include_bytes!("../target/assets/vs.bin");
         let ps_bin = include_bytes!("../target/assets/ps.bin");
@@ -444,6 +440,9 @@ fn main() {
                 DispatchMessageW(&msg);
             }
 
+            let viewports = [D3D11_VIEWPORT { Width: w as f32, Height: h as f32, MinDepth: 0.0, MaxDepth: 1.0, TopLeftX: 0.0, TopLeftY: 0.0 }];
+            device_context.OMSetRenderTargets(1, [rtv.as_ptr()].as_ptr(), null_mut());
+            device_context.RSSetViewports(viewports.len() as u32, viewports.as_ptr());
             device_context.ClearRenderTargetView(rtv.as_ptr(), &[0.1, 0.2, 0.3, 1.0]);
             device_context.IASetInputLayout(input_layout.as_ptr());
             device_context.IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
