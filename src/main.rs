@@ -374,13 +374,25 @@ fn main() {
         // Alt:     https://docs.rs/wio/0.2.2/x86_64-pc-windows-msvc/wio/com/struct.ComPtr.html
 
 
+        // While many graphics APIs implicitly render to the back buffer by default, D3D11 requires us to be explicit.
+        // To do so, we need to set a viewport, and bind a Render Target View (RTV) referencing the back buffer.
+        // Since D3D11 doesn't give us such an RTV by default, we have to create it ourselves.
+
         let mut back_buffer = null_mut();
         expect!(SUCCEEDED(swap_chain.GetBuffer(0, &ID3D11Resource::uuidof(), &mut back_buffer)));
         let back_buffer = mcom::Rc::from_raw(back_buffer as *mut ID3D11Resource);
+        //
+        // Get back buffer #0 - which we want to render to.  IDXGISwapChain::GetBuffer is incredibly generic - valid
+        // types include IDXGISurface, IDXGISurface1, ID3D11Resource, ID3D11Texture2D, and probably some D3D10 and D3D12
+        // types as well.  We only need this for `CreateRenderTargetView`, which takes a `ID3D11Texture2D` or
+        // `ID3D11Texture2DArray` as an `ID3D11Resource`, so I just retrieve the buffer directly as an `ID3D11Resource`.
+        //
+        // MSDN:    https://docs.microsoft.com/en-us/windows/win32/api/dxgi/nf-dxgi-idxgiswapchain-getbuffer
 
         let mut rtv = null_mut();
         expect!(SUCCEEDED(device.CreateRenderTargetView(back_buffer.as_ptr(), null_mut(), &mut rtv)));
         let rtv = mcom::Rc::from_raw(rtv);
+        // MSDN:    https://docs.microsoft.com/en-us/windows/win32/api/d3d11/nf-d3d11-id3d11device-createrendertargetview
 
         device_context.OMSetRenderTargets(1, [rtv.as_ptr()].as_ptr(), null_mut());
 
