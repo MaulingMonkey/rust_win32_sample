@@ -538,20 +538,64 @@ fn main() {
                 TranslateMessage(&msg);
                 DispatchMessageW(&msg);
             }
-
-            let viewports = [D3D11_VIEWPORT { Width: w as f32, Height: h as f32, MinDepth: 0.0, MaxDepth: 1.0, TopLeftX: 0.0, TopLeftY: 0.0 }];
-            device_context.OMSetRenderTargets(1, [rtv.as_ptr()].as_ptr(), null_mut());
-            device_context.RSSetViewports(viewports.len() as u32, viewports.as_ptr());
             device_context.ClearRenderTargetView(rtv.as_ptr(), &[0.1, 0.2, 0.3, 1.0]);
-            device_context.IASetInputLayout(input_layout.as_ptr());
-            device_context.IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+
+
+            // While clearing a render target is nice and state-free, rendering to a render target requires more
+            // ceremony.  We can bind multiple render targets at once (most commonly used for rendering G-buffers), and
+            // specify we only want to draw to a portion of them.  Here, we just bind the one render target we created
+            // earlier that points to our back buffer - which the pixel shader can write to as SV_TARGET0:
+            //
+            device_context.OMSetRenderTargets(1, [rtv.as_ptr()].as_ptr(), null_mut());
+            //
+            // ...we also select the entire bounds of the back buffer for rendering to:
+            //
+            let viewport = D3D11_VIEWPORT { Width: w as f32, Height: h as f32, MinDepth: 0.0, MaxDepth: 1.0, TopLeftX: 0.0, TopLeftY: 0.0 };
+            device_context.RSSetViewports(1, [viewport].as_ptr());
+            //
+            // MSDN:    https://docs.microsoft.com/en-us/windows/win32/api/d3d11/nf-d3d11-id3d11devicecontext-omsetrendertargets
+            // MSDN:    https://docs.microsoft.com/en-us/windows/win32/api/d3d11/nf-d3d11-id3d11devicecontext-rssetviewports
+
+
             device_context.IASetVertexBuffers(0, 1, [vertex_buffer.as_ptr()].as_ptr(), [size_of_val(&verticies[0]) as UINT].as_ptr(), [0].as_ptr());
+            //
+            // Bind vertex buffer slots in the range (0)..(0+1) (so, just slot #0) to `vertex_buffer`
+            //
+            // MSDN:    https://docs.microsoft.com/en-us/windows/win32/api/d3d11/nf-d3d11-id3d11devicecontext-iasetvertexbuffers
+
+
+            device_context.IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+            //
+            // The vertex buffer should be interpreted as a triangle list, consisting of a single triangle.
+            //
+            // MSDN:    https://docs.microsoft.com/en-us/windows/win32/api/d3d11/nf-d3d11-id3d11devicecontext-iasetprimitivetopology
+            // MSDN:    https://docs.microsoft.com/en-us/windows/win32/direct3d11/d3d10-graphics-programming-guide-primitive-topologies
+
+
+            device_context.IASetInputLayout(input_layout.as_ptr());
+            //
+            // The vertex buffer should be interpreted as `input_elements` in a way that can be fed into `vs_bin` compatible shaders.
+            //
+            // MSDN:    https://docs.microsoft.com/en-us/windows/win32/api/d3d11/nf-d3d11-id3d11devicecontext-iasetinputlayout
+
+
             device_context.VSSetShader(vs.as_ptr(), null_mut(), 0);
             device_context.PSSetShader(ps.as_ptr(), null_mut(), 0);
+            //
+            // We want to use these shaders for drawing.
+            //
+            // MSDN:    https://docs.microsoft.com/en-us/windows/win32/api/d3d11/nf-d3d11-id3d11devicecontext-vssetshader
+            // MSDN:    https://docs.microsoft.com/en-us/windows/win32/api/d3d11/nf-d3d11-id3d11devicecontext-pssetshader
+
+
             device_context.Draw(3, 0);
+            //
+            // Draw 3 verticies, starting from vertex #0 of the bound vertex buffer(s), without using an index buffer.
+            //
+            // MSDN:    https://docs.microsoft.com/en-us/windows/win32/api/d3d11/nf-d3d11-id3d11devicecontext-draw
 
 
             swap_chain.Present(1, 0);
         }
-    };
+    }
 }
