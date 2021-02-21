@@ -49,7 +49,6 @@ use winapi::um::debugapi::*;
 use winapi::um::libloaderapi::*;
 use winapi::um::winuser::*;
 
-use std::marker::PhantomData;
 use std::mem::{size_of_val, zeroed};
 use std::ptr::{null, null_mut};
 
@@ -440,7 +439,9 @@ fn main() {
         //  3)  Visible Z coordinates range from  0.0 (near plane)  to  1.0 (far plane)
         //      The triangle will be clipped if it's outside of this range.
         //
-        //  4)  The W component is required, but ignored by default.
+        //  4)  The W component is required, and used for nonlinear perspective calculations.
+        //      XYZ will be *divided* by this value.  Since dividing by `1.0` does nothing, it's commonly hardcoded for
+        //      screen-space and orthographic, non-perspective 3D.
         //
         //  5)  Triangles defined in clockwise order are considered "front" facing.
         //      "Back" facing triangles are discarded by default.
@@ -450,9 +451,9 @@ fn main() {
         let verticies : &[[f32; 4]] = &[
             //     POSITION0
             //  x,    y,   z,   w
-            [ 0.0,  0.5, 0.5, 0.0],
-            [ 0.5, -0.5, 0.5, 0.0],
-            [-0.5, -0.5, 0.5, 0.0],
+            [ 0.0,  0.5, 0.5, 1.0],
+            [ 0.5, -0.5, 0.5, 1.0],
+            [-0.5, -0.5, 0.5, 1.0],
         ];
 
         // We could use any other coordinate system we want, but we'd then have to transform it in our vertex shader.
@@ -474,6 +475,22 @@ fn main() {
         let vertex_buffer = mcom::Rc::from_raw(vertex_buffer);
 
 
+        // Create a couple of shaders.  The original source code for these shaders can be found at `res/*.hlsl`, and are
+        // built into GPU-independent, Shader Model 5.0, DXBC bytecode by `build.rs` (saved to `target/assets/*.bin`.)
+        //
+        // Vertex shaders are small programs, run on the GPU, per input vertex to transform verticies from the
+        // coordinate space used by the mesh, to the normalized device coordinates used by the screen, and can feed
+        // per-vertex information into the pixel shader.  Ours is incredibly simple - it simply takes POSITION0 and
+        // forwards it to SV_POSITION.
+        //
+        // Pixel shaders are run per output *fragment* - which can be multiple times per pixel when multisampling is
+        // enabled.  Ours is incredibly simple - it simply writes a hardcoded constant value to SV_TARGET0, the render
+        // target bound to slot 0.  SV_TARGET0 expects a float4(R,G,B,A).
+        //
+        // MSDN:    https://docs.microsoft.com/en-us/windows/win32/api/d3d11/nf-d3d11-id3d11device-createpixelshader
+        // MSDN:    https://docs.microsoft.com/en-us/windows/win32/api/d3d11/nf-d3d11-id3d11device-createvertexshader
+        // MSDN:    https://docs.microsoft.com/en-us/windows/win32/direct3d10/d3d10-graphics-programming-guide-resources-coordinates
+        //
         let vs_bin = include_bytes!("../target/assets/vs.bin");
         let ps_bin = include_bytes!("../target/assets/ps.bin");
         let mut vs = null_mut();
@@ -482,15 +499,38 @@ fn main() {
         expect!(SUCCEEDED((*device).CreatePixelShader( ps_bin.as_ptr().cast(), ps_bin.len(), null_mut(), &mut ps)));
         let vs = mcom::Rc::from_raw(vs);
         let ps = mcom::Rc::from_raw(ps);
-        // MSDN:    https://docs.microsoft.com/en-us/windows/win32/api/d3d11/nf-d3d11-id3d11device-createpixelshader
-        // MSDN:    https://docs.microsoft.com/en-us/windows/win32/api/d3d11/nf-d3d11-id3d11device-createvertexshader
 
 
+        // Create an input layout.  This describes how to read data from a vertex buffer into a vertex shader's inputs.
+        // In Direct3D11, this layout is specific to both the vertex layout *and* the exact inputs accepted by the
+        // optimized vertex shader.
+        //
+        let input_elements = [
+            D3D11_INPUT_ELEMENT_DESC {
+                // How to read from the vertex buffer
+                InputSlot:              0,                              // Read from the vertex buffer bound to slot #0
+                AlignedByteOffset:      0,                              // The 0th byte of the vertex buffer is the start of this element of the vertex.
+                Format:                 DXGI_FORMAT_R32G32B32A32_FLOAT, // Each element has 4 components (RGBA / XYZW), and each element is a 32-bit float.
+
+                // Write to the vertex shader's input variable marked "POSITION0":
+                SemanticName:           "POSITION\0".as_ptr().cast(),
+                SemanticIndex:          0,
+
+                // Don't do any fancy multiple-instance rendering
+                InputSlotClass:         D3D11_INPUT_PER_VERTEX_DATA,    // https://docs.microsoft.com/en-us/windows/win32/api/d3d11/ne-d3d11-d3d11_input_classification
+                InstanceDataStepRate:   0,
+            },
+            // If the vertex also had texture coordinates, we would specify another D3D11_INPUT_ELEMENT_DESC for it here.
+        ];
         let mut input_layout = null_mut();
-        expect!(SUCCEEDED((*device).CreateInputLayout(SimpleVertex::layout().as_ptr() as *const _, SimpleVertex::layout().len() as UINT, vs_bin.as_ptr() as *const _, vs_bin.len(), &mut input_layout)));
+        expect!(SUCCEEDED((*device).CreateInputLayout(input_elements.as_ptr(), input_elements.len() as UINT, vs_bin.as_ptr().cast(), vs_bin.len(), &mut input_layout)));
         let input_layout = mcom::Rc::from_raw(input_layout);
+        //
+        // MSDN:    https://docs.microsoft.com/en-us/windows/win32/api/d3d11/ns-d3d11-d3d11_input_element_desc
+        // MSDN:    https://docs.microsoft.com/en-us/windows/win32/api/d3d11/nf-d3d11-id3d11device-createinputlayout
 
 
+        // Okay, let's try that main loop again!  It starts out the same...
         loop {
             let mut msg : MSG = zeroed();
             while PeekMessageW(&mut msg, null_mut(), 0, 0, PM_REMOVE) != 0 {
@@ -509,41 +549,9 @@ fn main() {
             device_context.VSSetShader(vs.as_ptr(), null_mut(), 0);
             device_context.PSSetShader(ps.as_ptr(), null_mut(), 0);
             device_context.Draw(3, 0);
+
+
             swap_chain.Present(1, 0);
         }
     };
-}
-
-
-#[repr(transparent)]
-#[derive(Clone, Copy)]
-struct InputElementDesc<'a>(D3D11_INPUT_ELEMENT_DESC, PhantomData<&'a str>);
-unsafe impl<'a> Sync for InputElementDesc<'a> {}
-
-macro_rules! input_layout {
-    ($({ $semantic_name:expr , $semantic_index:expr , $format:expr , $input_slot:expr , $aligned_byte_offset:expr , $input_slot_class:expr , $instance_data_step_rate:expr }),+ $(,)?) => {
-        [
-            $(InputElementDesc(D3D11_INPUT_ELEMENT_DESC {
-                SemanticName:           concat!($semantic_name, "\0").as_ptr() as *const _,
-                SemanticIndex:          $semantic_index,
-                Format:                 $format,
-                InputSlot:              $input_slot,
-                AlignedByteOffset:      $aligned_byte_offset,
-                InputSlotClass:         $input_slot_class,
-                InstanceDataStepRate:   $instance_data_step_rate,
-            }, PhantomData)),+
-        ]
-    };
-}
-
-
-struct SimpleVertex;
-
-impl SimpleVertex {
-    fn layout() -> &'static [InputElementDesc<'static>] {
-        static LAYOUT : [InputElementDesc; 1] = input_layout! {
-            { "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0,  0, D3D11_INPUT_PER_VERTEX_DATA, 0 },
-        };
-        &LAYOUT[..]
-    }
 }
