@@ -278,7 +278,7 @@ fn main() {
         //  1.  The swap chain.  This is just a set of one or more buffers - each describing the contents of an entire
         //      window or screen - and an interface for sending those buffers to the OS for them to be displayed.
         //      Multiple buffers are used to allow your application to modify/render one buffer, while the GPU or OS is
-        //      busy displays the last fully completed buffer at the same time.  We can then *swap* between them once
+        //      busy displaying the last fully completed buffer at the same time.  We can then *swap* between them once
         //      we're done rendering, and the OS is ready for a new frame.
         //
         //      https://en.wikipedia.org/wiki/Multiple_buffering
