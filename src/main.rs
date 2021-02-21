@@ -14,7 +14,7 @@
 //
 //      "windows" programs will detatch from the console - stdout will be ignored, reading stdin will fail, and cmd.exe
 //      will be able to immediately display a new C:\> prompt while the program is still executing.  They can reattach
-//      to the parrent console via `AttachConsole(ARRACH_PARENT_PROCESS)`, but this can be confusing as other things are
+//      to the parent console via `AttachConsole(ARRACH_PARENT_PROCESS)`, but this can be confusing as other things are
 //      likely happening in said console already.
 //
 // If the program is launched from an explorer.exe window:
