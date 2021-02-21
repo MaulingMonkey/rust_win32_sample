@@ -427,6 +427,15 @@ fn main() {
             // By specifying `1` for the SyncInterval here, we'll wait for / syncronize with the monitor's vsync.
             // Assuming a 60hz monitor, GPU, etc. (bad assumption!), this whole loop will take about a second to execute.
             //
+            // Alternatively, we could specify `0`, and make our GPU capacitors and coils whine by burning through
+            // thousands of frames per second, if not tens of thousands.  Clearing the screen is well optimized and
+            // pretty cheap!  Of course, what you actually see on screen will be limited by the refresh rate of your
+            // monitor...
+            //
+            // A more complete example might check the `HRESULT` returned here to check if the underlying GPU/driver has
+            // been unplugged, reset, hung, etc. - and either gracefully reset or display a proper message to the user.
+            // But for a basic demo, that's fairly unnecessary.
+            //
             // MSDN:    https://docs.microsoft.com/en-us/windows/win32/api/dxgi/nf-dxgi-idxgiswapchain-present
 
         }
