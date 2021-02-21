@@ -15,12 +15,14 @@
 //      "windows" programs will detatch from the console - stdout will be ignored, reading stdin will fail, and cmd.exe
 //      will be able to immediately display a new C:\> prompt while the program is still executing.  They can reattach
 //      to the parent console via `AttachConsole(ARRACH_PARENT_PROCESS)`, but this can be confusing as other things are
-//      likely happening in said console already.
+//      likely happening in said console already.  They can also spawn a new console window with `AllocConsole()`.
 //
 // If the program is launched from an explorer.exe window:
 //
-//      "console" programs will spawn a new console window
-//      "windows" programs won't have a console at all.  They can spawn new consoles with `AllocConsole()` however.
+//      "console" programs will spawn a new console window, although they can get rid of it with `FreeConsole()`.
+//
+//      "windows" programs won't have a console at all.  `AttachConsole(ARRACH_PARENT_PROCESS)` will fail.
+//      They can spawn new consoles with `AllocConsole()` however.
 
 #![allow(non_snake_case)]
 // Rust will typically warn if you use variable names like `hCursor`, preferring `h_cursor` instead.
